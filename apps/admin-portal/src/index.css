@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  /* Custom Colors mapping dari token HTML Anda */
+  --color-on-surface-variant: #444651;
+  --color-surface-container-high: #eae8e7;
+  --color-surface-container-lowest: #ffffff;
+  --color-on-tertiary: #ffffff;
+  --color-on-primary-fixed: #001849;
+  --color-secondary-fixed: #ffe088;
+  --color-inverse-on-surface: #f2f0f0;
+  --color-tertiary-fixed-dim: #c3c6ce;
+  --color-on-secondary-fixed-variant: #574500;
+  --color-tertiary-container: #4c5057;
+  --color-surface-variant: #e4e2e2;
+  --color-surface-container-low: #f5f3f3;
+  --color-error-container: #ffdad6;
+  --color-error: #ba1a1a;
+  --color-secondary-container: #fed65b;
+  --color-background: #fbf9f8;
+  --color-tertiary: #35393f;
+  --color-surface-container-highest: #e4e2e2;
+  --color-on-primary-container: #aec1ff;
+  --color-on-tertiary-fixed-variant: #43474d;
+  --color-inverse-surface: #303030;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #745c00;
+  --color-outline: #747682;
+  --color-primary: #093483;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #2b4c9b;
+  --color-secondary-fixed-dim: #e9c349;
+  --color-secondary: #735c00;
+  --color-surface: #fbf9f8;
+  --color-tertiary-fixed: #dfe2ea;
+  --color-surface-container: #efeded;
+  --color-on-error: #ffffff;
+  --color-surface-dim: #dbd9d9;
+  --color-on-secondary-fixed: #241a00;
+  --color-inverse-primary: #b3c5ff;
+  --color-primary-fixed-dim: #b3c5ff;
+  --color-surface-tint: #3b5baa;
+  --color-surface-bright: #fbf9f8;
+  --color-on-background: #1b1c1c;
+  --color-on-surface: #1b1c1c;
+  --color-outline-variant: #c4c6d3;
+  --color-primary-fixed: #dae1ff;
+  --color-on-error-container: #93000a;
+  --color-on-tertiary-container: #bfc2ca;
+  --color-on-primary-fixed-variant: #1f4291;
+  --color-on-tertiary-fixed: #181c21;
+
+  /* Spacing Custom */
+  --spacing-gutter: 24px;
+  --spacing-margin-mobile: 16px;
+  --spacing-base: 8px;
+  --spacing-container-max: 1280px;
+  --spacing-margin-desktop: 48px;
+
+  /* Typography / Fonts */
+  --font-headline-md: "Noto Serif", serif;
+  --font-body-lg: "Manrope", sans-serif;
+  --font-body-md: "Manrope", sans-serif;
+  --font-headline-xl: "Noto Serif", serif;
+  --font-headline-lg-mobile: "Noto Serif", serif;
+  --font-label-md: "Manrope", sans-serif;
+  --font-headline-lg: "Noto Serif", serif;
+}
+
+/* Icons & Font configurations */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+}
+
+.filled-icon {
+  font-variation-settings: 'FILL' 1;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
