@@ -99,8 +99,11 @@ export default function LoginPage() {
           
           {/* Brand & Header Section */}
           <div className="text-center mb-10">
-            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary mb-6 shadow-xl ring-8 ring-primary-fixed">
-              <span className="material-symbols-outlined text-white text-4xl filled-icon">account_balance</span>
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full mb-6 shadow-xl">
+              <img 
+              alt="PPG Portal Logo" 
+              src="https://lh3.googleusercontent.com/aida-public/AB6AXuCB4ZmKw673_CbQssbtymOHtV6jpd7zUCzL5x7Gyt2Fe3Rucwjb-D_FUYLO3DHBHdLpbWr76jFrRZOEEEHO_XtrI--uoJMrg9yV2L9JzMCy7zo9chaSV_4ca4XkjnQkigZAktQ-qXuSURCIl0iRR4JBrW7VeHohZpijLcpRpRycUoIiAeKgKD7L7Ajl8raDzNh8EZOWahjh7_z3XY6yK7mCdf7-A5wMWXxorP4GApCYRi8gJEYbaTOayhX6TtPV6qVO81ghGZnM37g"
+            />
             </div>
             <h1 className="font-headline-lg-mobile md:font-headline-lg text-primary mb-2 font-bold text-3xl">
               Selamat Datang Kembali
