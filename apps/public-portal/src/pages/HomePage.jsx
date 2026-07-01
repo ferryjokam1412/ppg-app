@@ -80,7 +80,7 @@ export default function HomePage() {
             <Link 
               to="/daftar" 
               className="inline-block bg-primary text-on-primary px-8 py-4 rounded-xl font-label-md font-bold hover:bg-primary-container transition-all shadow-[0_4px_20px_rgba(43,76,155,0.2)] hover:shadow-[0_4px_25px_rgba(43,76,155,0.3)] transform hover:-translate-y-1 cursor-pointer">
-              Daftar Jadi Santri
+              Daftarkan Generus
             </Link>
           </div>
         </div>
