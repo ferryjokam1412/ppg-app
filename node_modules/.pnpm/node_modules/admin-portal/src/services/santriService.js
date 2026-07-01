@@ -2,8 +2,8 @@
 import { supabase } from '../utils/supabaseClient';
 
 export const santriService = {
-  // 1. Ambil data gabungan langsung dari SQL VIEW
-  async getStudentsList() {
+  // 1. Ambil data gabungan langsung dari SQL VIEW (Sertakan parameter tpqId)
+  async getStudentsList(tpqId) {
     const { data, error } = await supabase
       .from('vw_direktori_santri')
       .select(`
@@ -17,9 +17,13 @@ export const santriService = {
         sudah_mt,
         pernah_mondok,
         tpq_id,
-        nama_tpq
-      `) // <-- Mengambil data jenjang dan divisi dari database
-      .order('created_at', { ascending: false });
+        nama_tpq,
+        jenjang,
+        divisi,
+        keterangan_status
+      `)
+      .eq('tpq_id', tpqId) // 💡 TAMBAHKAN FILTER INI AGAR SANTRI TERSELEKSI PER TPQ
+      .order('nama_lengkap', { ascending: true });
 
     if (error) throw error;
     return data;
@@ -34,11 +38,16 @@ export const santriService = {
     return data;
   },
 
-  // 3. Mutasi khusus Jenjang dan Divisi oleh Pengajar di lapangan
-  async updateStudentMutation(studentId, jenjang, divisi) {
+  // 3. Mutasi tingkat lapangan: Ditambahkan parameter status & keterangan_status
+  async updateStudentMutation(studentId, jenjang, divisi, status, keteranganStatus) {
     const { data, error } = await supabase
       .from('santri')
-      .update({ jenjang, divisi })
+      .update({ 
+        jenjang, 
+        divisi, 
+        status, 
+        keterangan_status: keteranganStatus 
+      })
       .eq('id', studentId);
 
     if (error) throw error;

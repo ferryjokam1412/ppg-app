@@ -2,83 +2,104 @@
 import { supabase } from '../utils/supabaseClient';
 
 export const jurnalKelasService = {
-  // Ambil semua daftar rombel kelas caberawit
-  async getClasses(divisi) {
+  // 1. Ambil daftar rombel kelas berdasarkan Divisi DAN Cabang TPQ aktif
+  async getClasses(divisi, tpqId) {
     const { data, error } = await supabase
       .from('master_kelas')
       .select('*')
       .eq('divisi', divisi)
+      .eq('tpq_id', tpqId) // <-- FILTER: Membatasi rombel hanya milik TPQ yang bersangkutan
       .order('nama_kelas', { ascending: true });
+      
     if (error) throw error;
     return data || [];
   },
 
-  // Ambil data semua santri aktif
-  async getStudents() {
+  // 2. Ambil data semua santri aktif khusus di TPQ tersebut
+  async getStudents(tpqId) {
     const { data, error } = await supabase
       .from('santri')
       .select('*')
+      .eq('tpq_id', tpqId) 
       .order('nama_lengkap', { ascending: true });
+      
+    if (error) throw error;
+    
+    // 💡 JALUR AMAN: Map data agar langsung cocok dengan variabel yang diminta oleh UI
+    return (data || []).map(s => ({
+      ...s,
+      name: s.nama_lengkap, // Menyelaraskan nama_lengkap menjadi .name untuk UI Jurnal
+      classId: s.classId || s.class_id // Mengantisipasi sensitivitas huruf besar/kecil pada kolom DB
+    }));
+  },
+
+  // 3. Ambil data guru pengajar yang bertugas di TPQ tersebut
+  async getPengajar(tpqId) {
+    let query = supabase.from('pengajar').select('*').order('nama', { ascending: true });
+    
+    // Jika di tabel pengajar Anda ada kolom tpq_id, aktifkan filter ini:
+    if (tpqId) {
+      query = query.eq('tpq_id', tpqId);
+    }
+    
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
 
-  // Ambil data guru pengajar
-  async getPengajar() {
+  // 4. Ambil plot target kurikulum harian
+  async getJadwalHariIni(periode, hariKe, divisi, arrayJenjangSantri) {
     const { data, error } = await supabase
-      .from('pengajar')
+      .from('jadwal_kurikulum')
       .select('*')
-      .order('nama', { ascending: true });
+      .eq('periode', periode)
+      .eq('target_hari', hariKe)
+      .eq('divisi', divisi)
+      .in('jenjang', arrayJenjangSantri); // Menyaring baris sesuai komposit jenjang rombel terpilih
+      
     if (error) throw error;
     return data || [];
   },
 
-  // Ambil plot target kurikulum hari ini
-  // Contoh jika ke depan ingin memfilter jadwal kurikulum persis berdasarkan isi jenjang_list rombel
-async getJadwalHariIni(periode, hariKe, divisi, arrayJenjangSantri) {
-  const { data, error } = await supabase
-    .from('jadwal_kurikulum')
-    .select('*')
-    .eq('periode', periode)
-    .eq('target_hari', hariKe)
-    .eq('divisi', divisi)
-    .in('jenjang', arrayJenjangSantri); // Menyaring baris sesuai komposit jenjang rombel terpilih
-  if (error) throw error;
-  return data || [];
-},
-
-  // Ambil log histori jurnal dalam rentang bulan terpilih
-  async getHistoryLogs(startDate, endDate) {
-    const { data, error } = await supabase
+  // 5. Ambil log histori jurnal dalam rentang tanggal khusus untuk TPQ tersebut
+  async getHistoryLogs(startDate, endDate, tpqId) {
+    let query = supabase
       .from('jurnal_kelas')
       .select('*')
       .gte('tanggal', startDate)
       .lte('tanggal', endDate)
       .order('tanggal', { ascending: false });
+      
+    // Jika tabel jurnal_kelas Anda memiliki kolom tpq_id untuk isolasi rekap:
+    if (tpqId) {
+      query = query.eq('tpq_id', tpqId);
+    }
+      
+    const { data, error } = await query;
     if (error) throw error;
     return data || [];
   },
 
-  // Simpan data rombel kelas baru (Menyimpan array jenjang_list)
-  // ISI URUTANNYA: namaKelas, divisi, baru jenjangList
-async insertClass(namaKelas, divisi, jenjangList) {
-  const { data, error } = await supabase
-    .from('master_kelas')
-    .insert([
-      { 
-        nama_kelas: namaKelas, 
-        divisi: divisi,       // <-- Masuk ke kolom teks biasa
-        jenjang_list: jenjangList // <-- Masuk ke kolom Array TEXT[]
-      }
-    ])
-    .select()
-    .single();
+  // 6. Simpan data rombel kelas baru terikat dengan tpq_id pemiliknya
+  async insertClass(namaKelas, divisi, tpqId, jenjangList) {
+    const { data, error } = await supabase
+      .from('master_kelas')
+      .insert([
+        { 
+          nama_kelas: namaKelas, 
+          divisi: divisi,       
+          tpq_id: tpqId,          // <-- MENYIMPAN ID TPQ PEMBUAT
+          jenjang_list: jenjangList 
+        }
+      ])
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
-},
+    if (error) throw error;
+    return data;
+  },
 
-  // Perbarui konfigurasi rombel kelas lama
+  // 7. Perbarui konfigurasi rombel kelas lama
   async updateClass(id, namaKelas, jenjangList) {
     const { data, error } = await supabase
       .from('master_kelas')
@@ -86,33 +107,33 @@ async insertClass(namaKelas, divisi, jenjangList) {
       .eq('id', id)
       .select()
       .single();
+      
     if (error) throw error;
     return data;
   },
 
-  // Mutasi kelas/rombel siswa santri
-  // Tambahkan/timpa fungsi mutateStudentClass di src/services/jurnalKelasService.js Anda
-async mutateStudentClass(studentId, targetClassId, optionalJenjang, optionalDivisi) {
-  const payload = { "classId": targetClassId };
-  
-  // Jika di lapangan pengajar ingin memaksa merubah jenjang/divisi di luar standar umur lahirnya:
-  if (optionalJenjang) payload.jenjang = optionalJenjang;
-  if (optionalDivisi) payload.divisi = optionalDivisi;
-
-  const { error } = await supabase
-    .from('santri')
-    .update(payload)
-    .eq('id', studentId);
+  // 8. Mutasi rombel kelas santri di tingkat lapangan
+  async mutateStudentClass(studentId, targetClassId, optionalJenjang, optionalDivisi) {
+    const payload = { "classId": targetClassId };
     
-  if (error) throw error;
-  return true;
-},
+    if (optionalJenjang) payload.jenjang = optionalJenjang;
+    if (optionalDivisi) payload.divisi = optionalDivisi;
 
-  // Terbitkan laporan berkas jurnal kelas & manifes absensi harian
+    const { error } = await supabase
+      .from('santri')
+      .update(payload)
+      .eq('id', studentId);
+      
+    if (error) throw error;
+    return true;
+  },
+
+  // 9. Terbitkan laporan berkas jurnal kelas & absensi harian
   async insertJurnalKelas(payload) {
     const { data, error } = await supabase
       .from('jurnal_kelas')
       .insert([payload]);
+      
     if (error) throw error;
     return data;
   }

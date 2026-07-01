@@ -1,9 +1,13 @@
 // src/pages/pengajar-portal/ManagementJurnalKelas.jsx
 import { useState, useMemo, useEffect } from 'react';
 import { jurnalKelasService } from '../services/jurnalKelasService';
+import { useAuth } from '../context/AuthContext'; // 💡 1. INTEGRASI AUTH CONTEXT
 import toast from 'react-hot-toast';
 
 export default function ManagementJurnalKelas() {
+  // 💡 2. AMBIL DATA TPQ_ID DARI AKUN YANG SEDANG LOGIN
+  const { tpqId } = useAuth();
+
   const [activeTab, setActiveTab] = useState('kelas'); 
   const [activeDivision, setActiveDivision] = useState('caberawit'); 
   const [isLoading, setIsLoading] = useState(true);
@@ -25,8 +29,8 @@ export default function ManagementJurnalKelas() {
   const [selectedClassId, setSelectedClassId] = useState('');
   const [mutatingStudent, setMutatingStudent] = useState(null);
   const [targetMutationClass, setTargetMutationClass] = useState('');
-  const [targetMutationJenjang, setTargetMutationJenjang] = useState(''); // Override Lapangan
-  const [targetMutationDivisi, setTargetMutationDivisi] = useState('');   // Override Lapangan
+  const [targetMutationJenjang, setTargetMutationJenjang] = useState(''); 
+  const [targetMutationDivisi, setTargetMutationDivisi] = useState('');   
   
   // State Modal Tambah/Edit Rombel Komposit
   const [isClassModalOpen, setIsClassModalOpen] = useState(false);
@@ -56,13 +60,15 @@ export default function ManagementJurnalKelas() {
     return `${namaBulan[todayObj.getMonth()]} ${todayObj.getFullYear()}`;
   }, [todayObj]);
 
+  // 💡 3. SECURE DATA FETCHING: MELEMPARKAN TPQ_ID KEDALAM PARAMETER SERVICE
   const loadClassAndStudentsData = async () => {
+    if (!tpqId) return; // Cegah kueri berjalan jika data auth belum siap
     setIsLoading(true);
     try {
       const [kelas, santri, pengajar, jadwal] = await Promise.all([
-        jurnalKelasService.getClasses(activeDivision), 
-        jurnalKelasService.getStudents(),
-        jurnalKelasService.getPengajar(),
+        jurnalKelasService.getClasses(activeDivision, tpqId), 
+        jurnalKelasService.getStudents(tpqId),
+        jurnalKelasService.getPengajar(tpqId),
         jurnalKelasService.getJadwalHariIni(currentAutoMonth, todayDayNum)
       ]);
 
@@ -81,23 +87,25 @@ export default function ManagementJurnalKelas() {
       await syncLogHistoriJurnal();
     } catch (err) {
       console.error(err);
-      toast.error('Gagal menyinkronkan data dari pangkalan Supabase.');
+      toast.error('Gagal menyinkronkan data rombel dari pangkalan Supabase.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const syncLogHistoriJurnal = async () => {
+    if (!tpqId) return;
     try {
-      const logs = await jurnalKelasService.getHistoryLogs(filterStartDate, filterEndDate);
+      const logs = await jurnalKelasService.getHistoryLogs(filterStartDate, filterEndDate, tpqId);
       setHistoryList(logs);
     } catch (err) {
       console.error(err);
     }
   };
 
-  useEffect(() => { loadClassAndStudentsData(); }, [activeDivision]);
-  useEffect(() => { syncLogHistoriJurnal(); }, [filterStartDate, filterEndDate]);
+  // 💡 4. TAMBAHKAN TPQ_ID KEDALAM DEPENDENCY EFFECT HOOK
+  useEffect(() => { loadClassAndStudentsData(); }, [activeDivision, tpqId]);
+  useEffect(() => { syncLogHistoriJurnal(); }, [filterStartDate, filterEndDate, tpqId]);
 
   // Sync Buka Modal Mutasi Lapangan
   useEffect(() => {
@@ -184,24 +192,24 @@ export default function ManagementJurnalKelas() {
 
   const handleSaveClassSubmit = async (e) => {
     e.preventDefault();
-    if (!classFormName.trim() || classFormJenjang.length === 0) return;
+    if (!classFormName.trim() || classFormJenjang.length === 0 || !tpqId) return;
     try {
       if (editingClass) {
         await jurnalKelasService.updateClass(editingClass.id, classFormName.trim(), classFormJenjang);
         toast.success('Rombel berhasil dikonfigurasi ulang!');
       } else {
-        await jurnalKelasService.insertClass(classFormName.trim(), activeDivision, classFormJenjang);
+        // 💡 5. MENYUNTIKKAN TPQ_ID SAAT DEKLARASI ROMBEL BARU
+        await jurnalKelasService.insertClass(classFormName.trim(), activeDivision, tpqId, classFormJenjang);
         toast.success('Rombel baru berhasil dibuat!');
       }
       setIsClassModalOpen(false);
-      const updatedClasses = await jurnalKelasService.getClasses(activeDivision);
+      const updatedClasses = await jurnalKelasService.getClasses(activeDivision, tpqId);
       setClassesList(updatedClasses);
     } catch (err) {
       toast.error(err.message);
     }
   };
 
-  // EKSEKUSI MUTASI DINAMIS DI LAPANGAN (Mengubah ClassId, Jenjang, dan Divisi sekaligus)
   const handleExecuteMutation = async (e) => {
     e.preventDefault();
     if (!targetMutationClass) return;
@@ -222,10 +230,11 @@ export default function ManagementJurnalKelas() {
 
   const handleJournalSubmit = async (e) => {
     e.preventDefault();
-    if (!selectedPengajar) return;
+    if (!selectedPengajar || !tpqId) return;
     setIsSubmitting(true);
     try {
       const payload = {
+        tpq_id: tpqId, // 💡 6. ISOLASI DATA REKAP JURNAL AGAR AMAN PER TPQ
         tanggal: new Date().toISOString().split('T')[0],
         pengajar: pengajarList.find(p => p.id === selectedPengajar)?.nama || 'Unknown',
         kelas: classesList.find(c => c.id === selectedClassForJournal)?.nama_kelas || '',
@@ -481,7 +490,6 @@ export default function ManagementJurnalKelas() {
                 <label className="text-[10px] uppercase font-black text-outline">Pindahkan Ke Rombel Kelas Baru</label>
                 <select value={targetMutationClass} onChange={(e) => setTargetMutationClass(e.target.value)} className="w-full h-10 border rounded-xl px-2.5 font-bold bg-white" required>
                   <option value="">-- Pilih Kelas Tujuan --</option>
-                  {/* Tampilkan semua kelas rombel agar fleksibel */}
                   {classesList.map(c => (
                     <option key={c.id} value={c.id}>{c.nama_kelas} ({c.divisi})</option>
                   ))}
@@ -497,7 +505,7 @@ export default function ManagementJurnalKelas() {
                 </select>
               </div>
 
-              {/* 3. OVERRIDE PILIHAN JENJANG (Mengabaikan hitungan rumus umur asli jika ada anomali) */}
+              {/* 3. OVERRIDE PILIHAN JENJANG */}
               <div className="flex flex-col gap-1">
                 <label className="text-[10px] uppercase font-black text-outline">Override Tingkat Jenjang (Kondisi Lapangan)</label>
                 <select value={targetMutationJenjang} onChange={(e) => setTargetMutationJenjang(e.target.value)} className="w-full h-10 border rounded-xl px-2.5 font-bold bg-white" required>

@@ -1,18 +1,25 @@
 // src/pages/admin-portal/StudentsPage.jsx
 import { useState, useEffect, useMemo } from 'react';
 import { santriService } from '../services/santriService';
+import { useAuth } from '../context/AuthContext'; // 💡 1. IMPORT AUTH CONTEXT
 import toast from 'react-hot-toast';
 
 export default function StudentsPage() {
+  // 💡 2. AMBIL DATA TPQ_ID AKUN YANG SEDANG LOGIN
+  const { tpqId } = useAuth();
+
   const [students, setStudents] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All Students');
 
-  // State Management Pop-up Detail & Mutasi Terkunci
+  // State Management Pop-up Detail & Form Mutasi
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [editDivisi, setEditDivisi] = useState('');
   const [editJenjang, setEditJenjang] = useState('');
+  const [editStatus, setEditStatus] = useState('');
+  const [editKeteranganStatus, setEditKeteranganStatus] = useState('');
+  const [customReason, setCustomReason] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const filterChips = ['All Students', 'Active', 'Needs Review'];
@@ -25,10 +32,12 @@ export default function StudentsPage() {
     return ['PAUD/TK', 'Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6'];
   }, [editDivisi]);
 
+  // 💡 3. SECURE DATA FETCHING: MELEMPARKAN TPQ_ID KE SERVICE LIST
   const loadStudentsData = async () => {
+    if (!tpqId) return; // Cegah kueri berjalan sebelum profile auth siap
     setIsLoading(true);
     try {
-      const data = await santriService.getStudentsList();
+      const data = await santriService.getStudentsList(tpqId); 
       setStudents(data || []);
     } catch (err) {
       console.error(err.message);
@@ -38,15 +47,29 @@ export default function StudentsPage() {
     }
   };
 
+  // 💡 4. JADIKAN TPQ_ID SEBAGAI DEPENDENCY UTAMA
   useEffect(() => {
     loadStudentsData();
-  }, []);
+  }, [tpqId]);
 
   // Sync data ke form lokal saat pop-up diaktifkan
   useEffect(() => {
     if (selectedStudent) {
       setEditDivisi(selectedStudent.divisi || 'caberawit');
       setEditJenjang(selectedStudent.jenjang || 'PAUD/TK');
+      setEditStatus(selectedStudent.status || 'Active');
+      
+      const currentKet = selectedStudent.keterangan_status || '';
+      const presetReasons = ["sekolah sambil mondok", "mondok reguler", "Kerja/PKL Luar Kota", "sudah menikah"];
+      
+      if (currentKet && !presetReasons.includes(currentKet)) {
+        setEditKeteranganStatus('alasan lain');
+        setCustomReason(currentKet);
+      } else {
+        setEditKeteranganStatus(currentKet);
+        setCustomReason('');
+      }
+
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = 'unset';
@@ -54,29 +77,39 @@ export default function StudentsPage() {
     return () => { document.body.style.overflow = 'unset'; };
   }, [selectedStudent]);
 
-  // Handler Kirim Hasil Mutasi khusus Jenjang & Divisi
+  // Handler Kirim Hasil Perubahan Mutasi & Status
   const handleSaveMutation = async (e) => {
     e.preventDefault();
     if (!selectedStudent) return;
 
     setIsSaving(true);
-    const toastId = toast.loading('Sedang menyimpan pembaruan penempatan santri...');
+    const toastId = toast.loading('Sedang menyimpan pembaruan data santri...');
+
+    // Tentukan nilai akhir alasan berdasarkan pilihan dropdown
+    const finalKeterangan = editStatus === 'Active' ? null
+      : (editKeteranganStatus === 'alasan lain' ? customReason.trim() : editKeteranganStatus);
 
     try {
-      await santriService.updateStudentMutation(selectedStudent.id, editJenjang, editDivisi);
-      toast.success('Mutasi jenjang & divisi berhasil disimpan!', { id: toastId });
+      await santriService.updateStudentMutation(
+        selectedStudent.id,
+        editJenjang,
+        editDivisi,
+        editStatus,
+        finalKeterangan
+      );
+      toast.success('Pembaruan data berhasil disimpan!', { id: toastId });
       setSelectedStudent(null);
-      loadStudentsData(); // Refresh list data screen
+      loadStudentsData();
     } catch (err) {
       console.error(err);
-      toast.error('Gagal menyimpan perubahan mutasi.', { id: toastId });
+      toast.error('Gagal menyimpan perubahan data.', { id: toastId });
     } finally {
       setIsSaving(false);
     }
   };
 
   const handleApprove = async (id, name, e) => {
-    e.stopPropagation(); // Amankan dari pemicu klik card info
+    e.stopPropagation();
     const toastId = toast.loading(`Memproses generate NIS untuk ${name}...`);
     try {
       await santriService.approveStudent(id);
@@ -124,7 +157,7 @@ export default function StudentsPage() {
           Direktori & Penempatan Santri
         </h1>
         <p className="text-xs md:text-sm text-on-surface-variant font-medium">
-          Kelola re-alokasi kelompok divisi pembinaan serta monitoring berkas mutasi tingkat rombel lapangan.
+          Kelola re-alokasi kelompok divisi pembinaan serta monitoring status keaktifan tingkat lapangan.
         </p>
       </div>
 
@@ -165,7 +198,7 @@ export default function StudentsPage() {
                 activeFilter === chip ? 'border-primary bg-primary text-on-primary font-black' : 'border-outline-variant/80 text-on-surface-variant bg-white'
               }`}
             >
-              {chip === 'All Students' ? 'Semua Generus' : chip === 'Active' ? 'Aktif (Ada NIS)' : 'Butuh Approval'}
+              {chip === 'All Students' ? 'Semua Generus' : chip === 'Active' ? 'Aktif' : 'Butuh Approval'}
             </button>
           ))}
         </div>
@@ -178,11 +211,15 @@ export default function StudentsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
           {filteredStudents.map((student) => {
             const isPending = student.status === 'Needs Review';
+            const isInactive = student.status === 'Tidak Aktif';
+            
             return (
               <div 
-                key={student.id} 
-                onClick={() => setSelectedStudent(student)} // Tampilkan Detail Pop-up
-                className="bg-white rounded-xl border border-outline-variant/30 p-5 flex flex-col gap-4 shadow-sm hover:border-primary/40 transition-all cursor-pointer active:scale-99 relative overflow-hidden"
+                key={student.id}
+                onClick={() => setSelectedStudent(student)}
+                className={`bg-white rounded-xl border p-5 flex flex-col gap-4 shadow-sm hover:border-primary/40 transition-all cursor-pointer active:scale-99 relative overflow-hidden ${
+                  isInactive ? 'border-red-200 bg-red-50/10' : 'border-outline-variant/30'
+                }`}
               >
                 <div className="flex justify-between items-start gap-3">
                   <div className="flex items-center gap-3">
@@ -193,16 +230,15 @@ export default function StudentsPage() {
                       <h3 className="text-sm font-black text-on-surface truncate max-w-[180px]">{student.nama_lengkap}</h3>
                       <div className="flex items-center gap-1 mt-1 flex-wrap">
                         <span className="text-[9px] font-black bg-surface-container-high px-1.5 rounded uppercase">{student.jenis_kelamin} • {calculateAge(student.tanggal_lahir)} TH</span>
-                        {/* RE-ALOKASI LABEL DIVISI & JENJANG DI KARTU UTAMA */}
                         <span className="text-[9px] font-black bg-primary/10 text-primary px-1.5 rounded uppercase">{student.divisi || 'caberawit'}</span>
                         <span className="text-[9px] font-black bg-secondary/10 text-secondary px-1.5 rounded uppercase">{student.jenjang || 'Belum Set'}</span>
                       </div>
                     </div>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider ${
-                    isPending ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                    isPending ? 'bg-orange-100 text-orange-800' : isInactive ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
                   }`}>
-                    {isPending ? 'Review' : 'Aktif'}
+                    {isPending ? 'Review' : isInactive ? 'Off' : 'Aktif'}
                   </span>
                 </div>
 
@@ -216,6 +252,12 @@ export default function StudentsPage() {
                     <span className="text-on-surface block mt-0.5 font-black">🎓 {student.sudah_mt ? 'Mubaligh MT' : student.pernah_mondok ? 'Eks Mondok' : 'Reguler'}</span>
                   </div>
                 </div>
+
+                {isInactive && student.keterangan_status && (
+                  <div className="bg-red-50 text-red-900 text-[10px] p-2 rounded-lg border border-red-100 font-medium italic">
+                    Ket: "{student.keterangan_status}"
+                  </div>
+                )}
 
                 <div className="mt-auto pt-1 flex items-center justify-between gap-3">
                   <span className="text-[11px] font-mono font-black text-primary">{student.nis_display || 'NIS_PENDING'}</span>
@@ -239,12 +281,11 @@ export default function StudentsPage() {
         </div>
       )}
 
-      {/* ─── MODAL POP-UP DETAIL INFORMASI & MUTASI EXCLUSIVE TERKUNCI ─── */}
+      {/* ─── MODAL POP-UP DETAIL INFORMASI & MUTASI + EDIT STATUS KETERANGAN ─── */}
       {selectedStudent && (
         <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-xs p-0 sm:p-4">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col transform transition-all animate-scaleUp max-h-[88vh] overflow-hidden">
             
-            {/* Modal Header */}
             <div className="bg-primary text-on-primary px-4 py-3.5 flex justify-between items-center shrink-0">
               <span className="text-sm font-black flex items-center gap-1.5">
                 <span className="material-symbols-outlined text-base">id_card</span> Informasi Manifes Detail Santri
@@ -252,10 +293,9 @@ export default function StudentsPage() {
               <button type="button" onClick={() => setSelectedStudent(null)} className="material-symbols-outlined text-base cursor-pointer p-1 hover:bg-white/10 rounded-full">close</button>
             </div>
 
-            {/* Form Box Scrollable */}
             <form onSubmit={handleSaveMutation} className="p-5 overflow-y-auto space-y-4 text-xs font-semibold scrollbar-none pb-8 sm:pb-5">
               
-              {/* SEKSI A: DATA ADMINISTRASI (READ-ONLY / KUNCI TOTAL) */}
+              {/* SEKSI A: DATA ADMINISTRASI (READ-ONLY) */}
               <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/30 space-y-2.5">
                 <span className="text-[9px] text-outline font-black block uppercase tracking-wider border-b pb-1">Identitas Santri (Terkunci)</span>
                 
@@ -276,10 +316,6 @@ export default function StudentsPage() {
                     <span className="text-[9px] text-outline block font-medium">Kontak WhatsApp</span>
                     <span className="text-on-surface-variant font-mono font-bold">{selectedStudent.nomor_telepon || '-'}</span>
                   </div>
-                  <div>
-                    <span className="text-[9px] text-outline block font-medium">Status Pendaftaran</span>
-                    <span className="text-on-surface-variant font-bold uppercase tracking-wide text-[10px]">{selectedStudent.status}</span>
-                  </div>
                   <div className="col-span-2 border-t border-dashed border-outline-variant/30 pt-2 mt-1">
                     <span className="text-[9px] text-outline block font-medium">Lembaga TPQ Naungan</span>
                     <span className="text-on-surface font-black text-xs flex items-center gap-1">🏛 {selectedStudent.nama_tpq || 'Belum Terikat'}</span>
@@ -287,17 +323,17 @@ export default function StudentsPage() {
                 </div>
               </div>
 
-              {/* SEKSI B: HANYA INI YANG BISA DIEDIT/MUTASI OLEH PENGAJAR */}
+              {/* SEKSI B: AREA MODUL EDITABLE (DIVISI, JENJANG & STATUS GABUNGAN) */}
               <div className="bg-white border-2 border-primary/20 p-4 rounded-xl space-y-3.5 shadow-2xs">
                 <span className="text-[9px] text-primary font-black block uppercase tracking-wider flex items-center gap-1">
-                  <span className="material-symbols-outlined text-xs">edit_square</span> Penempatan Tingkat Mengajar (Bisa Diedit)
+                  <span className="material-symbols-outlined text-xs">edit_square</span> Penempatan & Status Lapangan (Bisa Diedit)
                 </span>
 
-                {/* Edit Pilihan Rumpun Divisi */}
+                {/* 1. Edit Pilihan Rumpun Divisi */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase font-black text-outline">Kelompok Divisi Pembinaan</label>
                   <select 
-                    value={editDivisi} 
+                    value={editDivisi}
                     onChange={(e) => { setEditDivisi(e.target.value); setEditJenjang(''); }}
                     className="w-full h-10 border border-outline-variant rounded-xl px-2.5 font-black text-xs bg-white outline-none focus:border-primary"
                     required
@@ -307,27 +343,79 @@ export default function StudentsPage() {
                   </select>
                 </div>
 
-                {/* Edit Pilihan Sub-Jenjang Kelas */}
+                {/* 2. Edit Pilihan Sub-Jenjang Kelas */}
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase font-black text-outline">Tingkat Jenjang Pembinaan Usia</label>
                   <select 
-                    value={editJenjang} 
+                    value={editJenjang}
                     onChange={(e) => setEditJenjang(e.target.value)}
                     className="w-full h-10 border border-outline-variant rounded-xl px-2.5 font-black text-xs bg-white text-primary outline-none focus:border-primary"
                     required
                   >
                     <option value="">-- Pilih Jenjang Lapangan --</option>
-                    {JURUSAN_JENJANG_OPTIONS.map(j => (
+                    {JENJANG_OPTIONS.map(j => (
                       <option key={j} value={j}>{j}</option>
                     ))}
                   </select>
                 </div>
+
+                {/* 3. Edit Pilihan Status Keaktifan */}
+                <div className="flex flex-col gap-1 pt-1 border-t border-dashed">
+                  <label className="text-[10px] uppercase font-black text-outline">Status Keaktifan Generus</label>
+                  <select 
+                    value={editStatus}
+                    onChange={(e) => { setEditStatus(e.target.value); setEditKeteranganStatus(''); setCustomReason(''); }}
+                    className={`w-full h-10 border rounded-xl px-2.5 font-black text-xs bg-white outline-none ${
+                      editStatus === 'Tidak Aktif' ? 'border-red-400 text-red-700 focus:border-red-500' : 'border-outline-variant focus:border-primary'
+                    }`}
+                    required
+                  >
+                    <option value="Active">Aktif / Mengikuti KBM Rutin</option>
+                    <option value="Tidak Aktif">Tidak Aktif (Off Lapangan)</option>
+                  </select>
+                </div>
+
+                {/* 4. Form Dropdown Alasan Keterangan Jika Memilih "Tidak Aktif" */}
+                {editStatus === 'Tidak Aktif' && (
+                  <div className="space-y-2.5 animate-fadeIn p-3 bg-red-50/50 border border-red-200/60 rounded-xl">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] uppercase font-black text-red-800">Pilih Keterangan Alasan</label>
+                      <select
+                        value={editKeteranganStatus}
+                        onChange={(e) => { setEditKeteranganStatus(e.target.value); if(e.target.value !== 'alasan lain') setCustomReason(''); }}
+                        className="w-full h-9 border border-red-200 rounded-lg px-2 bg-white font-bold text-xs text-on-surface focus:outline-none"
+                        required
+                      >
+                        <option value="">-- Pilih Alasan --</option>
+                        <option value="sekolah sambil mondok">Sekolah sambil mondok</option>
+                        <option value="mondok reguler">Mondok reguler</option>
+                        <option value="Kerja/PKL Luar Kota">Kerja/PKL Luar Kota</option>
+                        <option value="sudah menikah">Sudah Menikah</option>
+                        <option value="alasan lain">Alasan lain (Input sendiri)</option>
+                      </select>
+                    </div>
+
+                    {/* Input Kustom Teks Mandiri jika memilih 'Alasan Lain' */}
+                    {editKeteranganStatus === 'alasan lain' && (
+                      <div className="flex flex-col gap-1 animate-fadeIn">
+                        <label className="text-[9px] uppercase font-black text-outline">Tulis Alasan Kustom</label>
+                        <textarea
+                          value={customReason}
+                          onChange={(e) => setCustomReason(e.target.value)}
+                          placeholder="Contoh: pindah domisili ke luar daerah..."
+                          className="w-full h-16 bg-white border border-outline-variant rounded-lg p-2 font-medium text-xs focus:outline-none focus:border-primary"
+                          required
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Footer Button Actions */}
               <div className="flex gap-2 pt-3 border-t border-outline-variant/20 shrink-0">
                 <button type="button" onClick={() => setSelectedStudent(null)} className="w-1/4 h-10 border border-outline-variant rounded-xl font-bold text-on-surface-variant hover:bg-surface-container-low transition-colors cursor-pointer">Kembali</button>
-                <button type="submit" disabled={isSaving || !editJenjang} className="flex-1 h-10 bg-primary text-on-primary font-black shadow-md rounded-xl hover:bg-primary-container disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1">
+                <button type="submit" disabled={isSaving || !editJenjang || (editStatus === 'Tidak Aktif' && !editKeteranganStatus)} className="flex-1 h-10 bg-primary text-on-primary font-black shadow-md rounded-xl hover:bg-primary-container disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1">
                   <span className="material-symbols-outlined text-base">cloud_done</span>
                   {isSaving ? 'Menyimpan...' : 'Simpan Perubahan'}
                 </button>
