@@ -48,7 +48,7 @@ export default function App() {
 
   return (
   <AuthProvider>
-    <BrowserRouter>
+    <BrowserRouter basename="/admin">
       <Routes>
         
         {/* RUTE PUBLIK: Jika sudah login, tidak boleh masuk ke halaman /login lagi (diarahkan ke root) */}
