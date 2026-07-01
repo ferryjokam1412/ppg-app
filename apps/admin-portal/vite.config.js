@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite' // <-- Impor di sini
 
 // https://vite.dev/config/
 export default defineConfig({
-  base: '/admin/',
+  base: '/',
   plugins: [
     react(),
     tailwindcss(), // <-- Tambahkan di dalam array plugins
