@@ -5,6 +5,10 @@
       "destination": "https://ppg-app-admin-portal.vercel.app/admin-assets/:path*" 
     },
     { 
+      "source": "/admin", 
+      "destination": "https://ppg-app-admin-portal.vercel.app/" 
+    },
+    { 
       "source": "/admin/:path*", 
       "destination": "https://ppg-app-admin-portal.vercel.app/:path*" 
     },
