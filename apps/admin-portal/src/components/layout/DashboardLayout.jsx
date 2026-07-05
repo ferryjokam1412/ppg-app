@@ -6,7 +6,6 @@ import NavigationDrawer from './NavigationDrawer';
 import BottomNavBar from './BottomNavBar';
 
 export default function DashboardLayout() {
-  // State untuk mengontrol apakah sidebar dalam mode lebar (true) atau mini/ikon (false)
   const [isSidebarExpanded, setIsSidebarExpanded] = useState(true);
 
   const toggleSidebar = () => {
@@ -14,23 +13,26 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col antialiased selection:bg-secondary/20 p-6">
+    // 💡 PERBAIKAN: Menghapus p-6 dari container terluar agar full layar di HP
+    <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col antialiased selection:bg-secondary/20">
       
-      {/* 1. TopAppBar - Menerima state untuk mengatur margin-left secara dinamis */}
+      {/* 1. TopAppBar */}
       <TopAppBar isSidebarExpanded={isSidebarExpanded} />
 
       {/* Container Konten */}
-      <div className="flex flex-1 relative w-full max-w-container-max mx-auto">
+      {/* 💡 PERBAIKAN: Mengubah max-w-container-max menjadi w-full agar layout mepet penuh */}
+      <div className="flex flex-1 relative w-full">
         
-        {/* 2. Sidebar - Menerima state dan fungsi toggle */}
+        {/* 2. Sidebar */}
         <NavigationDrawer 
           isSidebarExpanded={isSidebarExpanded} 
           toggleSidebar={toggleSidebar} 
         />
 
-        {/* 3. Area Konten Utama Tengah - Margin kiri menyesuaikan lebar sidebar */}
+        {/* 3. Area Konten Utama Tengah */}
+        {/* 💡 PERBAIKAN: Mengatur padding agar pas di mobile (px-4) dan memberikan p-6 hanya di desktop (md:p-6) */}
         <main 
-          className={`flex-1 w-full px-margin-mobile md:px-margin-desktop py-8 md:py-12 pb-24 md:pb-12 overflow-x-hidden transition-all duration-300 ${
+          className={`flex-1 w-full px-4 md:px-margin-desktop py-4 md:py-8 pb-24 md:pb-12 overflow-x-hidden transition-all duration-300 ${
             isSidebarExpanded ? 'md:ml-72' : 'md:ml-20'
           }`}
         >
