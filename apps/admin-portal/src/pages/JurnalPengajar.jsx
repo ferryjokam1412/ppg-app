@@ -3,6 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { jurnalKelasService } from '../services/jurnalKelasService';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import JournalFormModal from './JournalFormModal';
 
 export default function ManagementJurnalKelas() {
   // 1. OTENTIKASI & KONTROL POROS MULTI-TENANT
@@ -12,14 +13,12 @@ export default function ManagementJurnalKelas() {
   const [activeTab, setActiveTab] = useState('kelas'); 
   const [activeDivision, setActiveDivision] = useState('caberawit'); 
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 3. STATE KUMPULAN DATA MASTER (DATABASE LISTS)
   const [classesList, setClassesList] = useState([]);
   const [studentsList, setStudentsList] = useState([]);
   const [historyList, setHistoryList] = useState([]);
   const [pengajarList, setPengajarList] = useState([]);
-  const [jadwalHariIni, setJadwalHariIni] = useState([]);
 
   // 4. STATE OPERASIONAL TAB ROMBEL & MUTASI LAPANGAN
   const [selectedClassId, setSelectedClassId] = useState('');
@@ -36,13 +35,7 @@ export default function ManagementJurnalKelas() {
 
   // 6. STATE MODAL 2: INPUT LAPORAN JURNAL KBM BARU
   const [isJournalModalOpen, setIsJournalModalOpen] = useState(false);
-  const [selectedPengajar, setSelectedPengajar] = useState('');
   const [selectedClassForJournal, setSelectedClassForJournal] = useState('');
-  const [attendanceState, setAttendanceState] = useState({});
-  const [capaianMateriState, setCapaianMateriState] = useState({});
-  const [catatanKelas, setCatatanKelas] = useState('');
-  const [journalFormJamMulai, setJournalFormJamMulai] = useState('15:30');
-  const [journalFormJamSelesai, setJournalFormJamSelesai] = useState('17:00');
 
   // 7. STATE MODAL 3: POPUP MANIFES REKAP DETAILS HISTORI
   const [selectedHistoryDetails, setSelectedHistoryDetails] = useState(null);
@@ -51,8 +44,22 @@ export default function ManagementJurnalKelas() {
   const [deleteConfirmation, setDeleteConfirmation] = useState(null);
 
   // 9. STATE RENTANG WAKTU FILTER LOG JURNAL
-  const [filterStartDate, setFilterStartDate] = useState('2026-06-01');
-  const [filterEndDate, setFilterEndDate] = useState('2026-06-30');
+  const [filterStartDate, setFilterStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 7); 
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+
+  const [filterEndDate, setFilterEndDate] = useState(() => {
+    const d = new Date(); 
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
 
   // 10. REAL-TIME BULAN & HARI DATE HELPER OLEH SISTEM
   const todayObj = useMemo(() => new Date(), []);
@@ -74,8 +81,7 @@ export default function ManagementJurnalKelas() {
     return hours > 0 ? `${hours} Jam ${mins > 0 ? `${mins} Menit` : ''}` : `${mins} Menit`;
   };
 
-  // AMBIL DATA & SINKRONISASI LOGIKA AUTO-DEFAULT JIKA ROMBEL KOSONG
-  // AMBIL DATA UTAMA (Tanpa memuat jadwal kurikulum secara hantam rata di awal)
+  // AMBIL DATA KELAS, SANTRI & PENGAJAR
   const loadClassAndStudentsData = async () => {
     if (!tpqId) return; 
     setIsLoading(true);
@@ -101,7 +107,6 @@ export default function ManagementJurnalKelas() {
         kelas = await jurnalKelasService.getClasses(activeDivision, tpqId);
       }
 
-      // 💡 PERBAIKAN: Hapus baris jadwal dari Promise.all
       const [santri, pengajar] = await Promise.all([
         jurnalKelasService.getStudents(tpqId),
         jurnalKelasService.getPengajar(tpqId)
@@ -126,66 +131,6 @@ export default function ManagementJurnalKelas() {
       setIsLoading(false);
     }
   };
-
-  // 💡 SINKRONISASI FINAL: Menggunakan nama kolom asli 'compiled_sessions' (Pakai Huruf S)
-  useEffect(() => {
-    const loadJadwalKurikulumSesuaiKelas = async () => {
-      if (!isJournalModalOpen || !selectedClassForJournal) return;
-      
-      const kelasTerpilih = classesList.find(c => c.id === selectedClassForJournal);
-      
-      if (!kelasTerpilih || !kelasTerpilih.jenjang_list || kelasTerpilih.jenjang_list.length === 0) {
-        setJadwalHariIni([]);
-        return;
-      }
-
-      try {
-        // 1. Tarik baris data kurikulum aktif dari Supabase
-        const rows = await jurnalKelasService.getJadwalHariIni(
-          currentAutoMonth,
-          todayDayNum,
-          kelasTerpilih.divisi,
-          kelasTerpilih.jenjang_list
-        );
-
-        // 2. Wadah penyatuan materi kurikulum lintas jenjang komposit
-        const aggregatedMap = {};
-
-        (rows || []).forEach(row => {
-          // 💡 FIX SINKRONISASI: Mengubah row.compiled_session menjadi row.compiled_sessions
-          const sessions = Array.isArray(row.compiled_sessions)
-            ? row.compiled_sessions
-            : (typeof row.compiled_sessions === 'string' ? JSON.parse(row.compiled_sessions) : []);
-
-          sessions.forEach(sess => {
-            const key = sess.kategori || 'UMUM';
-            
-            if (!aggregatedMap[key]) {
-              aggregatedMap[key] = {
-                kategori: key,
-                materials: []
-              };
-            }
-            
-            if (Array.isArray(sess.materials)) {
-              aggregatedMap[key].materials.push(...sess.materials);
-            }
-          });
-        });
-
-        // 3. Konversi hasil akhir menjadi array murni untuk konsumsi komponen UI React
-        const finalGroupedArray = Object.values(aggregatedMap);
-        
-        console.log("📦 BERHASIL MERGE COMPILED_SESSIONS KUSTOM:", finalGroupedArray);
-        setJadwalHariIni(finalGroupedArray);
-
-      } catch (err) {
-        console.error('Gagal mengekstrak objek compiled_sessions:', err);
-      }
-    };
-
-    loadJadwalKurikulumSesuaiKelas();
-  }, [selectedClassForJournal, isJournalModalOpen, currentAutoMonth, todayDayNum, classesList]);
 
   const syncLogHistoriJurnal = async () => {
     if (!tpqId) return;
@@ -224,51 +169,11 @@ export default function ManagementJurnalKelas() {
   }, [classesList, editingClass]);
 
   const filteredSantriByClass = useMemo(() => studentsList.filter(s => s.classId === selectedClassId), [studentsList, selectedClassId]);
-  const santriForAbsensi = useMemo(() => studentsList.filter(s => s.classId === selectedClassForJournal), [studentsList, selectedClassForJournal]);
 
   const totalAttendanceAverage = useMemo(() => {
     if (historyList.length === 0) return 0;
     return Math.round(historyList.reduce((acc, curr) => acc + (curr.hadir_pct || 0), 0) / historyList.length);
   }, [historyList]);
-
-  // INITIALIZE INTERNAL FORM STATE ABSENSI & MATERI SILABUS JURNAL
-  useEffect(() => {
-    const initAbsen = {};
-    santriForAbsensi.forEach(s => { initAbsen[s.id] = 'H'; });
-    setAttendanceState(initAbsen);
-
-    const initCapaian = {};
-    jadwalHariIni.forEach(sess => {
-      sess.materials?.forEach(mat => { initCapaian[mat.materi_id] = mat.target_awal || 1; });
-    });
-    setCapaianMateriState(initCapaian);
-  }, [selectedClassForJournal, isJournalModalOpen, jadwalHariIni, santriForAbsensi]);
-
-  const liveAttendancePercentage = useMemo(() => {
-    const total = Object.keys(attendanceState).length;
-    if (total === 0) return 0;
-    return Math.round((Object.values(attendanceState).filter(v => v === 'H').length / total) * 100);
-  }, [attendanceState]);
-
-  const liveProgressPercentage = useMemo(() => {
-    let totalProgress = 0;
-    let count = 0;
-    jadwalHariIni.forEach(sess => {
-      sess.materials?.forEach(mat => {
-        count++;
-        const currentVal = capaianMateriState[mat.materi_id] || 0;
-        if (mat.tipe_pelacakan === 'persentase') {
-          totalProgress += Math.min(100, Math.max(0, currentVal));
-        } else {
-          const totalRange = (mat.target_akhir - mat.target_awal) + 1;
-          const currentProgress = (currentVal - mat.target_awal) + 1;
-          const pct = totalRange > 0 ? (currentProgress / totalRange) * 100 : 100;
-          totalProgress += Math.min(100, Math.max(0, Math.round(pct)));
-        }
-      });
-    });
-    return count > 0 ? Math.round(totalProgress / count) : 0;
-  }, [capaianMateriState, jadwalHariIni]);
 
   // ACTION HANDLER: OPERASIONAL ROMBEL KELAS
   const handleOpenAddClass = () => {
@@ -290,17 +195,6 @@ export default function ManagementJurnalKelas() {
       setClassFormJenjang(prev => prev.filter(item => item !== jenjangName));
     } else {
       setClassFormJenjang(prev => [...prev, jenjangName]);
-    }
-  };
-
-  const handleSyncJournalTimeWithClass = () => {
-    const targetClass = classesList.find(c => c.id === selectedClassForJournal);
-    if (targetClass && targetClass.jam_mulai && targetClass.jam_selesai) {
-      setJournalFormJamMulai(targetClass.jam_mulai);
-      setJournalFormJamSelesai(targetClass.jam_selesai);
-      toast.success('Jam berhasil disesuaikan dengan jadwal rombel kelas!');
-    } else {
-      toast.error('Rombel kelas ini belum memiliki konfigurasi jam operasional.');
     }
   };
 
@@ -350,36 +244,6 @@ export default function ManagementJurnalKelas() {
     }
   };
 
-  const handleJournalSubmit = async (e) => {
-    e.preventDefault();
-    if (!selectedPengajar || !tpqId) return;
-    setIsSubmitting(true);
-    try {
-      const payload = {
-        tpq_id: tpqId, 
-        tanggal: new Date().toISOString().split('T')[0],
-        pengajar: pengajarList.find(p => p.id === selectedPengajar)?.nama || 'Unknown',
-        kelas: classesList.find(c => c.id === selectedClassForJournal)?.nama_kelas || '',
-        hadir_pct: liveAttendancePercentage,
-        capaian_pct: liveProgressPercentage,
-        jam_mulai: journalFormJamMulai,
-        jam_selesai: journalFormJamSelesai,
-        detail: catatanKelas.trim(),
-        absensi: santriForAbsensi.map(s => ({
-          name: s.name || s.nama_lengkap,
-          status: attendanceState[s.id] === 'H' ? 'Hadir' : attendanceState[s.id] === 'I' ? 'Izin' : attendanceState[s.id] === 'S' ? 'Sakit' : 'Alfa'
-        }))
-      };
-      await jurnalKelasService.insertJurnalKelas(payload);
-      toast.success('Laporan berkas Jurnal KBM berhasil diterbitkan!');
-      setIsJournalModalOpen(false); setCatatanKelas(''); syncLogHistoriJurnal();
-    } catch (err) {
-      toast.error(err.message);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 select-none animate-fadeIn pb-16">
       
@@ -410,7 +274,7 @@ export default function ManagementJurnalKelas() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start animate-scaleUp">
               <div className="space-y-3 bg-white border border-outline-variant/60 p-4 rounded-2xl shadow-xs">
                 <div className="flex items-center justify-between border-b border-outline-variant/20 pb-2 mb-1">
-                  <h3 className="text-xs font-black text-outline uppercase tracking-wider">Rombel Aktif ({activeDivision})</h3>
+                  <h3 className="text-xs font-black text-outline uppercase tracking-wider">Rombel Profil Kelas</h3>
                   <button type="button" onClick={handleOpenAddClass} className="text-[11px] font-black text-primary hover:underline flex items-center gap-0.5 cursor-pointer bg-primary/5 px-2.5 py-1 rounded-lg">
                     <span className="material-symbols-outlined text-xs font-bold">add</span> Tambah Rombel
                   </button>
@@ -477,7 +341,7 @@ export default function ManagementJurnalKelas() {
                   <span className="text-outline font-sans">s/d</span>
                   <input type="date" value={filterEndDate} onChange={(e) => setFilterEndDate(e.target.value)} className="bg-surface-container-low border rounded-xl px-2.5 py-1.5 focus:outline-none" />
                 </div>
-                <button type="button" onClick={() => { setJournalFormJamMulai('15:30'); setJournalFormJamSelesai('17:00'); setIsJournalModalOpen(true); }} className="w-full md:w-auto h-11 bg-primary text-on-primary font-black text-xs px-5 rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer"><span className="material-symbols-outlined text-base font-bold">add_circle</span> Input Jurnal Hari Ini</button>
+                <button type="button" onClick={() => { setIsJournalModalOpen(true); }} className="w-full md:w-auto h-11 bg-primary text-on-primary font-black text-xs px-5 rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer"><span className="material-symbols-outlined text-base font-bold">add_circle</span> Input Jurnal Hari Ini</button>
               </div>
 
               <div className="space-y-3">
@@ -512,7 +376,6 @@ export default function ManagementJurnalKelas() {
             <form onSubmit={handleSaveClassSubmit} className="p-5 space-y-4 text-xs font-semibold">
               <div className="flex flex-col gap-1.5"><label className="text-[10px] uppercase font-black text-outline">Nama Rombel Kelompok</label><input type="text" value={classFormName} onChange={(e) => setClassFormName(e.target.value)} className="w-full h-10 border rounded-xl px-3 font-bold bg-white outline-none focus:border-primary" placeholder="Contoh: Rombel Caberawit A" required /></div>
               
-              {/* INPUT JAM OPERASIONAL MASTER ROMBEL KELAS */}
               <div className="grid grid-cols-2 gap-3 bg-surface-container-low p-3.5 rounded-xl border">
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase font-black text-outline">Jam Mulai KBM</label>
@@ -528,7 +391,6 @@ export default function ManagementJurnalKelas() {
                 </div>
               </div>
 
-              {/* CHECKBOX BATAS JENJANG USIA */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] uppercase font-black text-outline">Pilih Cakupan Batas Usia Jenjang</label>
                 <div className="grid grid-cols-2 gap-2 bg-surface-container-low p-3 rounded-xl border">
@@ -537,7 +399,6 @@ export default function ManagementJurnalKelas() {
                     const isChecked = classFormJenjang.includes(jenjang);
                     return (
                       <label key={jenjang} className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${isAlreadyTaken ? 'bg-surface-container-highest/60 opacity-40 cursor-not-allowed' : isChecked ? 'bg-primary/5 border-primary text-primary font-black cursor-pointer' : 'bg-white hover:bg-surface-container-low cursor-pointer'}`}>
-                        {/* 💡 CENTANG FIX: Berfungsi normal dengan w-4 h-4 kursor pointer */}
                         <input type="checkbox" checked={isChecked} disabled={isAlreadyTaken} onChange={() => handleToggleJenjangCheckbox(jenjang)} className="accent-primary w-4 h-4 cursor-pointer" />
                         <span className="text-[11px] font-medium">{jenjang}</span>
                       </label>
@@ -551,110 +412,85 @@ export default function ManagementJurnalKelas() {
         </div>
       )}
 
-      {/* MODAL 2: FORM PENERBITAN BERKAS JURNAL KBM BARU */}
+      {/* MODAL 2: MODULAR FORM PENERBITAN BERKAS JURNAL KBM BARU */}
       {isJournalModalOpen && (
-        <div className="fixed inset-0 z-[999] bg-surface-container-lowest flex flex-col animate-fadeIn md:p-4 sm:bg-black/40 sm:backdrop-blur-xs sm:items-center sm:justify-center">
-          <div className="bg-white w-full h-full md:h-auto md:max-w-3xl md:rounded-3xl shadow-2xl flex flex-col transform transition-all animate-scaleUp overflow-hidden max-h-[95vh]">
-            <div className="bg-primary text-on-primary px-4 py-3.5 flex justify-between items-center shrink-0 font-black sticky top-0 z-10"><span className="text-sm font-black flex items-center gap-2"><span className="material-symbols-outlined text-base">edit_note</span> Form Penerbitan Jurnal Kelas</span><button type="button" onClick={() => setIsJournalModalOpen(false)} className="material-symbols-outlined text-base cursor-pointer">close</button></div>
-            <form onSubmit={handleJournalSubmit} className="flex-1 overflow-y-auto p-4 md:p-6 space-y-5 text-xs font-semibold scrollbar-none">
-              <div className="grid grid-cols-2 gap-3 bg-primary/5 p-3 rounded-xl text-center">
-                <div><span className="text-[10px] text-outline block font-bold">PREVIEW ABSEN</span><span className="text-sm font-black text-primary font-mono">{liveAttendancePercentage}%</span></div>
-                <div><span className="text-[10px] text-outline block font-bold">PREVIEW CAPAIAN</span><span className="text-sm font-black text-secondary font-mono">{liveProgressPercentage}%</span></div>
-              </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                <div className="flex flex-col gap-1"><label className="text-[10px] uppercase font-black text-outline">Pengajar Pengampu</label><select value={selectedPengajar} onChange={(e) => setSelectedPengajar(e.target.value)} className="h-9.5 bg-white border rounded-xl px-2.5 font-bold outline-none focus:border-primary" required><option value="">-- Pilih Pengajar --</option>{pengajarList.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}</select></div>
-                <div className="flex flex-col gap-1"><label className="text-[10px] uppercase font-black text-outline">Rombel Kelompok</label><select value={selectedClassForJournal} onChange={(e) => setSelectedClassForJournal(e.target.value)} className="h-9.5 bg-white border rounded-xl px-2.5 font-bold outline-none focus:border-primary">{classesList.map(c => <option key={c.id} value={c.id}>{c.nama_kelas}</option>)}</select></div>
-              </div>
-
-              {/* INPUT TIME PELAKSANAAN KBM + BUTTON AUTOMATIC MATCH SYNC */}
-              <div className="bg-surface-container-low p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col gap-1 w-24">
-                    <label className="text-[10px] uppercase font-black text-outline">Jam Mulai KBM</label>
-                    <input type="time" value={journalFormJamMulai} onChange={(e) => setJournalFormJamMulai(e.target.value)} className="h-8 border rounded-lg px-2 bg-white font-mono font-bold text-center outline-none focus:border-primary" required />
-                  </div>
-                  <span className="text-outline font-bold mt-4">s/d</span>
-                  <div className="flex flex-col gap-1 w-24">
-                    <label className="text-[10px] uppercase font-black text-outline">Jam Selesai KBM</label>
-                    <input type="time" value={journalFormJamSelesai} onChange={(e) => setJournalFormJamSelesai(e.target.value)} className="h-8 border rounded-lg px-2 bg-white font-mono font-bold text-center outline-none focus:border-primary" required />
-                  </div>
-                  <div className="flex flex-col gap-1 pl-2">
-                    <span className="text-[9px] text-outline font-medium block">Total Durasi:</span>
-                    <span className="font-mono font-black text-secondary">{calculateDuration(journalFormJamMulai, journalFormJamSelesai)}</span>
-                  </div>
-                </div>
-                
-                {/* BUTTON HARMONISASI WAKTU KBM */}
-                <button type="button" onClick={handleSyncJournalTimeWithClass} className="h-9 border border-secondary text-secondary hover:bg-secondary/5 px-3 rounded-xl font-black text-[11px] flex items-center justify-center gap-1 cursor-pointer transition-colors">
-                  <span className="material-symbols-outlined text-sm">schedule_send</span> Sesuai Jadwal Rombel
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-5 items-start">
-                {/* SEKSI PRESENSI MANIFES */}
-                <div className="lg:col-span-2 border rounded-2xl p-3.5 space-y-3"><span className="text-[10px] font-black text-primary uppercase tracking-wider block border-b pb-1">Presensi Santri</span>
-                  <div className="space-y-2 max-h-[30vh] overflow-y-auto pr-1 scrollbar-none">
-                    {santriForAbsensi.map((s, idx) => (
-                      <div key={s.id} className="p-2 bg-surface-container-low/50 border rounded-xl space-y-1"><p className="font-black text-on-surface truncate">{idx + 1}. {s.name || s.nama_lengkap}</p>
-                        <div className="grid grid-cols-4 gap-1 text-[9px] font-black text-center">{['H', 'I', 'S', 'A'].map((st) => (<button key={st} type="button" onClick={() => setAttendanceState(prev => ({ ...prev, [s.id]: st }))} className={`py-0.5 rounded border transition-all ${attendanceState[s.id] === st ? 'bg-primary text-on-primary border-transparent font-bold' : 'bg-white text-on-surface-variant hover:bg-surface-container-low'}`}>{st === 'H' ? 'Hadir' : st === 'I' ? 'Izin' : st === 'S' ? 'Sakit' : 'Alfa'}</button>))}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-                
-                {/* SEKSI CAPAIAN TARGET SILABUS */}
-                <div className="lg:col-span-3 border rounded-2xl p-3.5 space-y-3"><span className="text-[10px] font-black text-secondary uppercase tracking-wider block border-b pb-1">Target Silabus</span>
-                  <div className="space-y-3">
-                    {jadwalHariIni.length === 0 ? <p className="text-center py-6 italic text-outline">Tidak ada target kurikulum ter-plot harian.</p> : (
-                      jadwalHariIni.map((sess, sIdx) => (
-                        <div key={sIdx} className="bg-surface-container-low p-3 rounded-xl space-y-2"><span className="text-[9px] font-black bg-secondary text-on-secondary px-1.5 rounded uppercase block w-fit">{sess.kategori}</span>
-                          {sess.materials?.map(mat => (
-                            <div key={mat.materi_id} className="bg-white p-3 rounded-lg border space-y-2"><div className="flex justify-between items-center"><h5 className="font-black text-on-surface">{mat.nama_materi}</h5></div>
-                              {mat.tipe_pelacakan === 'halaman_ayat' ? (
-                                <div className="space-y-1"><p className="text-[10px] text-outline">Target: Lembar <span className="text-primary font-black">{mat.target_awal} - {mat.target_akhir}</span></p><input type="number" min={mat.target_awal} value={capaianMateriState[mat.materi_id] || ''} onChange={(e) => setCapaianMateriState(prev => ({ ...prev, [mat.materi_id]: parseInt(e.target.value, 10) || 0 }))} className="w-full h-8 border rounded px-2 font-mono font-black bg-white" required /></div>
-                              ) : (
-                                <div className="space-y-1"><input type="range" min="0" max="100" step="5" value={capaianMateriState[mat.materi_id] || 0} onChange={(e) => setCapaianMateriState(prev => ({ ...prev, [mat.materi_id]: parseInt(e.target.value, 10) || 0 }))} className="w-full accent-primary appearance-none bg-surface-container-high h-1 rounded" /><div className="text-right text-[10px] font-mono font-black text-primary">{capaianMateriState[mat.materi_id] || 0}%</div></div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="flex flex-col gap-1.5 bg-surface-container-low p-3.5 rounded-2xl border"><label className="text-[10px] uppercase font-black text-outline tracking-wider flex items-center gap-1"><span className="material-symbols-outlined text-sm text-primary">rate_review</span> Catatan / Laporan Kejadian Kelas</label>
-                <textarea value={catatanKelas} onChange={(e) => setCatatanKelas(e.target.value)} className="w-full min-h-[85px] bg-white border rounded-xl p-3 outline-none focus:border-primary" placeholder="Tulis kendala atau rekapitulasi KBM mengajar..." required />
-              </div>
-              <div className="pt-3 border-t flex gap-2 justify-end"><button type="button" onClick={() => setIsJournalModalOpen(false)} className="px-5 h-10 border rounded-xl font-bold">Batal</button><button type="submit" disabled={isSubmitting} className="px-6 h-10 bg-primary text-on-primary font-black rounded-xl shadow-md">{isSubmitting ? 'Mengunggah...' : 'Kirim Laporan'}</button></div>
-            </form>
-          </div>
-        </div>
+        <JournalFormModal 
+          isOpen={isJournalModalOpen}
+          onClose={() => setIsJournalModalOpen(false)}
+          tpqId={tpqId}
+          classesList={classesList}
+          studentsList={studentsList}
+          pengajarList={pengajarList}
+          selectedClassForJournal={selectedClassForJournal}
+          setSelectedClassForJournal={setSelectedClassForJournal}
+          currentAutoMonth={currentAutoMonth}
+          todayDayNum={todayDayNum}
+          syncLogHistoriJurnal={syncLogHistoriJurnal}
+          calculateDuration={calculateDuration}
+        />
       )}
 
-      {/* MODAL 3: POPUP DETAILS MANIFES REKAP BERKAS JURNAL */}
+      {/* 3. MODAL REKAP MANIFES DETAILS HISTORI */}
       {selectedHistoryDetails && (
         <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-xs p-0 sm:p-4 animate-fadeIn">
           <div className="bg-white w-full sm:max-w-md rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col transform transition-all animate-scaleUp max-h-[85vh] overflow-hidden">
             <div className="bg-secondary text-on-secondary px-4 py-3.5 flex justify-between items-center shrink-0"><span className="text-sm font-black flex items-center gap-1.5"><span className="material-symbols-outlined text-base">analytics</span> Detil Riwayat Jurnal KBM</span><button type="button" onClick={() => setSelectedHistoryDetails(null)} className="material-symbols-outlined text-base cursor-pointer">close</button></div>
             <div className="p-5 space-y-4 overflow-y-auto text-xs font-semibold scrollbar-none">
               <div className="grid grid-cols-2 gap-3 bg-surface-container-high/60 p-3 rounded-xl text-center font-mono">
-                <div className="border-r border-outline-variant/40"><p className="text-[9px] text-outline font-bold uppercase">Kehadiran</p><p className="text-base font-black text-green-700">{selectedHistoryDetails.hadir_pct}%</p></div>
-                <div><p className="text-[9px] text-outline font-bold uppercase">Capaian</p><p className="text-base font-black text-blue-700">{selectedHistoryDetails.capaian_pct}%</p></div>
-              </div>
+  <div className="border-r border-outline-variant/40">
+    <p className="text-[9px] text-outline font-bold uppercase">Kehadiran</p>
+    <p className="text-base font-black text-green-700">{selectedHistoryDetails.hadir_pct}%</p>
+  </div>
+  <div>
+    <p className="text-[9px] text-outline font-bold uppercase">Status Silabus</p>
+    {/* 💡 KOREKSI: Ubah dari "100%" menjadi nilai dinamis dari database */}
+    <p className="text-base font-black text-blue-700">{selectedHistoryDetails.capaian_pct}%</p>
+  </div>
+</div>
               <div className="space-y-1.5 bg-surface-container-low p-3 rounded-xl border">
                 <p className="text-on-surface">📅 <span className="font-bold">Tanggal KBM:</span> {selectedHistoryDetails.tanggal}</p>
                 <p className="text-on-surface">🏛 <span className="font-bold">Nama Rombel:</span> {selectedHistoryDetails.kelas}</p>
                 <p className="text-on-surface">🧔 <span className="font-bold">Guru Pengampu:</span> {selectedHistoryDetails.pengajar}</p>
                 {selectedHistoryDetails.jam_mulai && <p className="text-on-surface">⏱ <span className="font-bold">Jam Belajar:</span> {selectedHistoryDetails.jam_mulai} - {selectedHistoryDetails.jam_selesai} ({calculateDuration(selectedHistoryDetails.jam_mulai, selectedHistoryDetails.jam_selesai)})</p>}
-                <div className="mt-2 pt-2 border-t border-dashed"><span className="text-[9px] uppercase font-black text-outline block mb-0.5">Catatan Kelas / Hambatan:</span><p className="text-on-surface-variant italic font-medium leading-relaxed bg-white p-2.5 rounded-lg border">"{selectedHistoryDetails.detail || 'Tidak ada catatan khusus.'}"</p></div>
+                <div className="mt-2 pt-2 border-t border-dashed"><span className="text-[9px] uppercase font-black text-outline block mb-0.5">Catatan & Rangkuman KBM Harian:</span><p className="text-on-surface-variant font-medium leading-relaxed bg-white p-2.5 rounded-lg border whitespace-pre-line">{selectedHistoryDetails.detail || 'Tidak ada catatan khusus.'}</p></div>
               </div>
+
+              {/* 💡 SINKRONISASI BARU: BLOK RENDER CAPAIAN SILABUS REAL-TIME */}
+              <div className="space-y-1.5">
+                <p className="text-[10px] text-outline uppercase font-black pl-1">Target Silabus Tersampaikan</p>
+                <div className="border border-outline-variant/30 rounded-xl overflow-hidden bg-white max-h-32 overflow-y-auto scrollbar-none px-3 py-1.5 space-y-1.5">
+                  {Array.isArray(selectedHistoryDetails.capaian_silabus_jurnal) && selectedHistoryDetails.capaian_silabus_jurnal.length > 0 ? (
+                    selectedHistoryDetails.capaian_silabus_jurnal.map((sil, sIdx) => (
+                      <div key={sIdx} className="flex justify-between items-center py-1 border-b border-outline-variant/10 last:border-none font-bold">
+                        <span className="text-on-surface truncate max-w-[70%]">• {sil.nama_materi} <span className="text-[9px] text-outline font-medium">({sil.kategori})</span></span>
+                        <span className="text-[10px] text-primary font-mono bg-primary/5 px-2 py-0.5 rounded">
+                          {sil.tipe_pelacakan === 'persentase' ? `${sil.capaian_pct}%` : `${sil.tipe_pelacakan === 'hadist' ? 'Hds' : sil.tipe_pelacakan === 'ayat' ? 'Ayt' : 'Hal'} ${sil.capaian_awal}-${sil.capaian_akhir}`}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center py-3 text-outline italic">Tidak ada dokumentasi silabus utama harian.</p>
+                  )}
+                </div>
+              </div>
+
               <div className="space-y-1.5"><p className="text-[10px] text-outline uppercase font-black pl-1">Manifes Absensi Santri</p>
                 <div className="max-h-36 overflow-y-auto divide-y border rounded-xl px-3 bg-white scrollbar-none">
-                  {selectedHistoryDetails.absensi?.map((abs, sIdx) => (
-                    <div key={sIdx} className="py-2 flex justify-between items-center"><span className="font-bold text-on-surface truncate max-w-[70%]">{sIdx + 1}. {abs.name}</span><span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${abs.status === 'Hadir' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>{abs.status}</span></div>
-                  ))}
+                  {/* 💡 KOREKSI: Membaca array sub-tabel hasil join secara dinamis */}
+                  {Array.isArray(selectedHistoryDetails.absensi_santri) && selectedHistoryDetails.absensi_santri.length > 0 ? (
+                    selectedHistoryDetails.absensi_santri.map((abs, sIdx) => (
+                      <div key={sIdx} className="py-2 flex justify-between items-center">
+                        <span className="font-bold text-on-surface truncate max-w-[70%]">
+                          {sIdx + 1}. {abs.santri?.nama_lengkap || 'Santri Terhapus'}
+                        </span>
+                        <span className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${abs.status === 'Hadir' ? 'bg-green-100 text-green-800' : abs.status === 'Izin' ? 'bg-blue-100 text-blue-800' : abs.status === 'Sakit' ? 'bg-orange-100 text-orange-800' : 'bg-red-100 text-red-800'}`}>
+                          {abs.status}
+                        </span>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center py-4 text-outline italic">Manifes riwayat absensi kosong.</p>
+                  )}
                 </div>
               </div>
               <button type="button" onClick={() => setSelectedHistoryDetails(null)} className="w-full h-10 bg-secondary text-on-secondary font-black rounded-xl cursor-pointer shadow-md">Tutup Manifes</button>
@@ -691,7 +527,6 @@ export default function ManagementJurnalKelas() {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-[10px] uppercase font-black text-outline">Pindahkan Ke Rombel Kelas Baru</label>
                 <select value={targetMutationClass} onChange={(e) => setTargetMutationClass(e.target.value)} className="w-full h-10 border rounded-xl px-2.5 font-bold bg-white text-primary outline-none focus:border-primary">
                   <option value="">-- Letakkan Tanpa Rombel Kelas --</option>
                   {classesList.map(c => (
@@ -709,7 +544,7 @@ export default function ManagementJurnalKelas() {
         </div>
       )}
 
-      {/* ─── 💡 HIGH-END CUSTOM CONFIRMATION DIALOG MODAL (Pengganti window.confirm) ─── */}
+      {/* HIGH-END CUSTOM CONFIRMATION DIALOG MODAL */}
       {deleteConfirmation && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
           <div className="bg-white w-full max-w-xs rounded-2xl shadow-2xl p-5 flex flex-col items-center text-center animate-scaleUp space-y-4">

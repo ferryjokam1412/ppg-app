@@ -1,11 +1,11 @@
 // src/components/PengajarJournalView.jsx
 import { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../utils/supabaseClient'; // Sesuaikan dengan path client Supabase di projek Anda
+import { supabase } from '../utils/supabaseClient'; 
 import toast from 'react-hot-toast';
 
 export default function PengajarJournalView() {
   const [viewMode, setViewMode] = useState('today'); // 'today' atau 'monthly'
-  const [selectedDate, setSelectedDate] = useState(29); // Tanggal kalender terpilih
+  const [selectedDate, setSelectedDate] = useState(1); // Tanggal kalender terpilih
   const [dbJadwalList, setDbJadwalList] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   
@@ -14,7 +14,7 @@ export default function PengajarJournalView() {
 
   // Deteksi otomatis waktu riil hari ini (Tahun berjalan 2026)
   const todayObj = useMemo(() => new Date(), []);
-  const todayDayNum = todayObj.getDate(); 
+  const todayDayNum = todayObj.getDate();
 
   // Generator nama periode bulan dinamis
   const namaBulanArray = useMemo(() => [
@@ -42,7 +42,7 @@ export default function PengajarJournalView() {
   const activeMonthDetails = useMemo(() => {
     const targetMonthDate = new Date(todayObj.getFullYear(), todayObj.getMonth() + currentMonthOffset, 1);
     const totalDays = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth() + 1, 0).getDate();
-    const firstDayIndex = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 1).getDay(); 
+    const firstDayIndex = new Date(targetMonthDate.getFullYear(), targetMonthDate.getMonth(), 1).getDay();
     return {
       totalDays,
       firstDayIndex,
@@ -136,6 +136,13 @@ export default function PengajarJournalView() {
     });
   }, [dbJadwalList, activeMonthDetails, viewMode]);
 
+  // Helper untuk melabeli awalan tipe target secara ramah UI
+  const formatTypeLabel = (type) => {
+    if (type === 'ayat') return 'Ayat';
+    if (type === 'hadist') return 'Hadist';
+    return 'Hal';
+  };
+
   return (
     <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6 select-none animate-fadeIn pb-12">
       
@@ -214,28 +221,32 @@ export default function PengajarJournalView() {
                             {targetData.compiled_sessions?.map((sesi, idx) => (
                               <div key={idx} className="bg-surface-container-low p-2.5 rounded-xl border border-outline-variant/30 space-y-1">
                                 <p className="text-[9px] font-black bg-secondary text-on-secondary w-fit px-1.5 rounded uppercase tracking-wide">{sesi.kategori || `Sesi ${idx + 1}`}</p>
-                                {sesi.materials?.map((mat, mIdx) => (
-                                  <div key={mIdx} className="text-xs font-bold text-on-surface flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pl-1 py-1 border-b border-outline-variant/10 last:border-none">
-                                    <span className="flex items-center gap-1.5">
-                                      <span className="text-primary text-[10px]">▶</span> {mat.nama_materi}
-                                    </span>
-                                    
-                                    <div className="flex items-center gap-2 self-start sm:self-auto pl-4 sm:pl-0">
-                                      {/* MODIFIKASI: JIKA BERTYPE HALAMAN_AYAT TAMPILKAN VALUE TARGET */}
-                                      {mat.tipe_pelacakan === 'halaman_ayat' && (
-                                        <span className="text-[10px] bg-surface-container-high text-outline px-2 py-0.5 rounded font-mono">
-                                          🎯 Target: {mat.target_awal || 1} - {mat.target_akhir || 1}
-                                        </span>
-                                      )}
+                                {sesi.materials?.map((mat, mIdx) => {
+                                  const isRangeType = mat.tipe_pelacakan === 'halaman' || mat.tipe_pelacakan === 'ayat' || mat.tipe_pelacakan === 'hadist';
+                                  
+                                  return (
+                                    <div key={mIdx} className="text-xs font-bold text-on-surface flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5 pl-1 py-1 border-b border-outline-variant/10 last:border-none">
+                                      <span className="flex items-center gap-1.5">
+                                        <span className="text-primary text-[10px]">▶</span> {mat.nama_materi}
+                                      </span>
                                       
-                                      {mat.tipe_pelacakan === 'persentase' ? (
-                                        <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-mono">Capaian: {mat.capaian_terakhir || 0}%</span>
-                                      ) : mat.capaian_terakhir ? (
-                                        <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-mono">Capaian Riil: {mat.capaian_terakhir}</span>
-                                      ) : null}
+                                      <div className="flex items-center gap-2 self-start sm:self-auto pl-4 sm:pl-0">
+                                        {/* 💡 UPDATE: Validasi range dinamis mendukung 3 opsi terpisah */}
+                                        {isRangeType && (
+                                          <span className="text-[10px] bg-surface-container-high text-outline px-2 py-0.5 rounded font-mono">
+                                            🎯 Target: {formatTypeLabel(mat.tipe_pelacakan)} {mat.target_awal || 1} - {mat.target_akhir || 1}
+                                          </span>
+                                        )}
+                                        
+                                        {mat.tipe_pelacakan === 'persentase' ? (
+                                          <span className="text-[10px] bg-green-100 text-green-800 px-1.5 py-0.5 rounded font-mono">Capaian: {mat.capaian_terakhir || 0}%</span>
+                                        ) : mat.capaian_terakhir ? (
+                                          <span className="text-[10px] bg-orange-100 text-orange-800 px-1.5 py-0.5 rounded font-mono">Idx Riil: {mat.capaian_terakhir}</span>
+                                        ) : null}
+                                      </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             ))}
                           </div>
@@ -352,25 +363,29 @@ export default function PengajarJournalView() {
                                 {sesi.kategori || 'Sesi'}
                               </span>
                               <div className="pl-1 space-y-1.5 text-on-surface font-bold">
-                                {sesi.materials?.map((m, mIdx) => (
-                                  <div key={mIdx} className="flex flex-col gap-0.5 border-b border-outline-variant/10 last:border-none pb-1 last:pb-0">
-                                    <div className="flex items-center justify-between gap-1 leading-tight">
-                                      <p className="flex items-center gap-1"><span className="text-primary text-[8px]">•</span>{m.nama_materi}</p>
-                                      {m.tipe_pelacakan === 'persentase' ? (
-                                        <span className="text-[9px] font-normal text-green-700 bg-green-50 px-1 rounded">{m.capaian_terakhir || 0}%</span>
-                                      ) : m.capaian_terakhir ? (
-                                        <span className="text-[9px] font-normal text-orange-700 bg-orange-50 px-1 rounded">Idx: {m.capaian_terakhir}</span>
-                                      ) : null}
+                                {sesi.materials?.map((m, mIdx) => {
+                                  const isRangeCalType = m.tipe_pelacakan === 'halaman' || m.tipe_pelacakan === 'ayat' || m.tipe_pelacakan === 'hadist';
+
+                                  return (
+                                    <div key={mIdx} className="flex flex-col gap-0.5 border-b border-outline-variant/10 last:border-none pb-1 last:pb-0">
+                                      <div className="flex items-center justify-between gap-1 leading-tight">
+                                        <p className="flex items-center gap-1"><span className="text-primary text-[8px]">•</span>{m.nama_materi}</p>
+                                        {m.tipe_pelacakan === 'persentase' ? (
+                                          <span className="text-[9px] font-normal text-green-700 bg-green-50 px-1 rounded">{m.capaian_terakhir || 0}%</span>
+                                        ) : m.capaian_terakhir ? (
+                                          <span className="text-[9px] font-normal text-orange-700 bg-orange-50 px-1 rounded">Idx: {m.capaian_terakhir}</span>
+                                        ) : null}
+                                      </div>
+                                      
+                                      {/* 💡 UPDATE: Rendering informasi target harian/bulanan berdasarkan pemisahan tipe pelacakan */}
+                                      {isRangeCalType && (
+                                        <span className="text-[9px] text-outline font-medium pl-3 block">
+                                          🎯 Target: {formatTypeLabel(m.tipe_pelacakan)} {m.target_awal || 1} - {m.target_akhir || 1}
+                                        </span>
+                                      )}
                                     </div>
-                                    
-                                    {/* MODIFIKASI: JIKA BERTYPE HALAMAN_AYAT TAMPILKAN VALUE TARGET DI DETIL BULANAN */}
-                                    {m.tipe_pelacakan === 'halaman_ayat' && (
-                                      <span className="text-[9px] text-outline font-medium pl-3 block">
-                                        🎯 Target: {m.target_awal || 1} - {m.target_akhir || 1}
-                                      </span>
-                                    )}
-                                  </div>
-                                ))}
+                                  );
+                                })}
                               </div>
                             </div>
                           ))}

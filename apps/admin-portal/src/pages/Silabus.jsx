@@ -1,30 +1,32 @@
 // src/pages/admin-portal/KurikulumMasterView.jsx
 import { useState, useEffect, useMemo } from 'react';
-import { kurikulumService } from '../services/kurikulumService'; // Jalur disesuaikan dengan projek Anda
+import { kurikulumService } from '../services/kurikulumService'; 
 import toast from 'react-hot-toast';
 
 const JENJANG_OPTIONS = ['PAUD/TK', 'Kelas 1', 'Kelas 2', 'Kelas 3', 'Kelas 4', 'Kelas 5', 'Kelas 6', 'Pra Remaja', 'Remaja', 'Pra Nikah'];
 
 export default function KurikulumMasterView({ onBack }) {
   const [materials, setMaterials] = useState([]);
-  const [categories, setCategories] = useState([]); 
+  const [categories, setCategories] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filterJenjang, setFilterJenjang] = useState('Kelas 1');
 
   // STATE MODAL ENGINE
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCatModalOpen, setIsCatModalOpen] = useState(false); 
+  const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   
   // STATE CRUD KATEGORI INTERNAL
   const [newCatInput, setNewCatInput] = useState('');
   const [editingCatId, setEditingCatId] = useState(null);
 
   const [editingId, setEditingId] = useState(null);
+  
+  // 💡 UPDATE: Mengubah default tipe_pelacakan dari 'halaman_ayat' menjadi 'halaman'
   const [form, setForm] = useState({
     kategori: '',
-    nama_materi: '', // Menyimpan Nama Surat / Nama Kitab
+    nama_materi: '', 
     jenjang: 'Kelas 1',
-    tipe_pelacakan: 'halaman_ayat', // 'halaman_ayat' atau 'persentase'
+    tipe_pelacakan: 'halaman', 
     halaman_mulai: 1,
     halaman_selesai: 1
   });
@@ -36,7 +38,6 @@ export default function KurikulumMasterView({ onBack }) {
     } else {
       document.body.style.overflow = 'unset';
     }
-    // Cleanup function untuk mengembalikan scroll normal jika komponen unmount
     return () => {
       document.body.style.overflow = 'unset';
     };
@@ -69,6 +70,21 @@ export default function KurikulumMasterView({ onBack }) {
     return materials.filter(m => m.jenjang === filterJenjang);
   }, [materials, filterJenjang]);
 
+  // FLOATING HELPER: KELOLA WARNA BADGE SESUAI TIPE PELACAKAN SPESIFIK
+  const getBadgeStyles = (type) => {
+    if (type === 'persentase') return 'bg-blue-50 text-blue-800';
+    if (type === 'ayat') return 'bg-purple-50 text-purple-800';
+    if (type === 'hadist') return 'bg-emerald-50 text-emerald-800';
+    return 'bg-orange-50 text-orange-800'; // default halaman
+  };
+
+  const getBadgeLabel = (type) => {
+    if (type === 'persentase') return 'Persentase';
+    if (type === 'ayat') return 'Ayat';
+    if (type === 'hadist') return 'Hadist';
+    return 'Halaman';
+  };
+
   // FORM HANDLERS MATERI SILABUS
   const handleOpenCreateModal = () => {
     setEditingId(null);
@@ -76,7 +92,7 @@ export default function KurikulumMasterView({ onBack }) {
       kategori: categories[0]?.nama_kategori || '',
       nama_materi: '',
       jenjang: filterJenjang,
-      tipe_pelacakan: 'halaman_ayat',
+      tipe_pelacakan: 'halaman', 
       halaman_mulai: 1,
       halaman_selesai: 1
     });
@@ -89,7 +105,7 @@ export default function KurikulumMasterView({ onBack }) {
       kategori: item.kategori,
       nama_materi: item.nama_materi,
       jenjang: item.jenjang,
-      tipe_pelacakan: item.tipe_pelacakan || 'halaman_ayat',
+      tipe_pelacakan: item.tipe_pelacakan || 'halaman', 
       halaman_mulai: item.halaman_mulai || 1,
       halaman_selesai: item.halaman_selesai || 1
     });
@@ -100,14 +116,15 @@ export default function KurikulumMasterView({ onBack }) {
     e.preventDefault();
     const toastId = toast.loading("Menyimpan materi ke server...");
     
-    // Normalisasi susunan payload tanpa membawa parameter jilid
+    const isRangeType = ['halaman', 'ayat', 'hadist'].includes(form.tipe_pelacakan);
+    
     const payload = {
       kategori: form.kategori,
       nama_materi: form.nama_materi.trim(),
       jenjang: form.jenjang,
       tipe_pelacakan: form.tipe_pelacakan,
-      halaman_mulai: form.tipe_pelacakan === 'halaman_ayat' ? parseInt(form.halaman_mulai, 10) || 1 : 1,
-      halaman_selesai: form.tipe_pelacakan === 'halaman_ayat' ? parseInt(form.halaman_selesai, 10) || 1 : 100
+      halaman_mulai: isRangeType ? parseInt(form.halaman_mulai, 10) || 1 : 1,
+      halaman_selesai: isRangeType ? parseInt(form.halaman_selesai, 10) || 1 : 100
     };
 
     try {
@@ -167,13 +184,21 @@ export default function KurikulumMasterView({ onBack }) {
     }
   };
 
+  // KONTROL TEKS DISKRESI INPUT BERDASARKAN METODE PELACAKAN
+  const getDynamicMateriLabel = () => {
+    if (form.tipe_pelacakan === 'ayat') return { title: "Nama Surat / Juz Al-Qur'an", placeholder: "Contoh: Al-Baqarah, Juz 30 Amma" };
+    if (form.tipe_pelacakan === 'hadist') return { title: "Nama Kitab / Kumpulan Hadist", placeholder: "Contoh: Arba'in Nawawi, Bulughul Maram" };
+    if (form.tipe_pelacakan === 'persentase') return { title: "Nama Kitab / Jenis Kegiatan", placeholder: "Contoh: Jurus Keras, Doa Tidur, Gerakan Sholat" };
+    return { title: "Nama Kitab / Jilid Buku", placeholder: "Contoh: Tilawati Jilid 2, Kitab Adab" };
+  };
+
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
       {/* HEADER CONTROL */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-outline-variant/40 pb-5">
         <div>
           <h1 className="text-2xl font-black text-primary tracking-tight">Gudang Silabus Master</h1>
-          <p className="text-xs text-on-surface-variant font-semibold mt-0.5">Kelola target belajar mengajar berbasis rentang lembar (Halaman/Ayat) atau prosentase capaian mandiri.</p>
+          <p className="text-xs text-on-surface-variant font-semibold mt-0.5">Kelola target belajar mengajar berbasis rentang indeks (Halaman/Ayat/Hadist) atau prosentase capaian mandiri pusat.</p>
         </div>
         <div className="flex items-center gap-2 self-stretch md:self-auto">
           <button type="button" onClick={() => setIsCatModalOpen(true)} className="bg-surface-container-high text-on-surface border border-outline-variant font-black text-xs px-3 py-2.5 rounded-xl shadow-sm flex items-center justify-center gap-1 cursor-pointer hover:bg-surface-container-highest">
@@ -211,16 +236,17 @@ export default function KurikulumMasterView({ onBack }) {
               <div className="space-y-1">
                 <div className="flex items-center gap-1.5">
                   <span className="text-[9px] font-black bg-primary/10 text-primary px-2 py-0.5 rounded uppercase tracking-wider">{item.kategori}</span>
-                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${item.tipe_pelacakan === 'persentase' ? 'bg-blue-50 text-blue-800' : 'bg-orange-50 text-orange-800'}`}>
-                    {item.tipe_pelacakan === 'persentase' ? 'Prosentase' : 'Halaman/Ayat'}
+                  {/* 💡 UPDATE: Rendering warna badge cerdas dinamis mengikuti 4 rumpun tipe terpisah */}
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider ${getBadgeStyles(item.tipe_pelacakan)}`}>
+                    {getBadgeLabel(item.tipe_pelacakan)}
                   </span>
                 </div>
                 <h3 className="text-sm font-black text-on-surface pt-0.5">{item.nama_materi}</h3>
                 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] font-semibold text-on-surface-variant pt-1">
-                  {item.tipe_pelacakan === 'halaman_ayat' ? (
+                  {['halaman', 'ayat', 'hadist'].includes(item.tipe_pelacakan) ? (
                     <span className="flex items-center gap-0.5 text-secondary font-bold">
-                      <span className="material-symbols-outlined text-xs">tag</span> Rentang Target: {item.halaman_mulai} - {item.halaman_selesai}
+                      <span className="material-symbols-outlined text-xs">tag</span> Rentang Target ({getBadgeLabel(item.tipe_pelacakan)}): {item.halaman_mulai} - {item.halaman_selesai}
                     </span>
                   ) : (
                     <span className="flex items-center gap-0.5 text-blue-700 font-bold">
@@ -238,7 +264,7 @@ export default function KurikulumMasterView({ onBack }) {
         </div>
       )}
 
-      {/* MODAL INTERFACE A: CRUD MANAJEMEN MATERI SILABUS (HIGH Z-INDEX & NO NAVBAR OVERLAP) */}
+      {/* MODAL INTERFACE A: CRUD MANAJEMEN MATERI SILABUS */}
       {isModalOpen && (
         <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fadeIn">
           <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col transform transition-all animate-scaleUp max-h-[85vh] overflow-hidden mb-[safe-area-inset-bottom]">
@@ -264,41 +290,50 @@ export default function KurikulumMasterView({ onBack }) {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[10px] uppercase font-black text-outline">Metode Pelacakan</label>
+                  {/* 💡 UPDATE: Menyediakan 4 opsi tipe terpisah yang bersih dan spesifik */}
                   <select value={form.tipe_pelacakan} onChange={(e) => setForm({...form, tipe_pelacakan: e.target.value})} className="w-full h-10 bg-white border border-outline-variant rounded-xl px-2.5 font-black text-primary cursor-pointer focus:outline-none">
-                    <option value="halaman_ayat">Halaman / Nomor Ayat</option>
-                    <option value="persentase">Prosentase Capaian (0-100%)</option>
+                    <option value="halaman">📖 Halaman Buku</option>
+                    <option value="ayat">🔢 Ayat Al-Qur'an</option>
+                    <option value="hadist">📜 Nomor Hadist</option>
+                    <option value="persentase">％ Prosentase Capaian</option>
                   </select>
                 </div>
               </div>
 
               <div className="flex flex-col gap-1">
+                {/* 💡 UPDATE: Teks label interaktif mengikuti jenis target riil */}
                 <label className="text-[10px] uppercase font-black text-outline">
-                  {form.tipe_pelacakan === 'halaman_ayat' ? "Nama Surat / Nama Kitab" : "Nama Kitab / Jenis Kegiatan"}
+                  {getDynamicMateriLabel().title}
                 </label>
                 <input 
                   type="text" 
                   value={form.nama_materi} 
                   onChange={(e) => setForm({...form, nama_materi: e.target.value})} 
                   className="w-full h-10 border border-outline-variant rounded-xl px-3 focus:outline-none" 
-                  placeholder={form.tipe_pelacakan === 'halaman_ayat' ? "Contoh: Al-Baqarah, Tilawati Jilid 2" : "Contoh: Jurus Keras, Doa Tidur, Imla"} 
+                  placeholder={getDynamicMateriLabel().placeholder} 
                   required 
                 />
               </div>
 
-              {/* FORM INDEKS NUMERIK UNTUK HALAMAN / NOMOR AYAT */}
-              {form.tipe_pelacakan === 'halaman_ayat' ? (
+              {/* FORM INDEKS NUMERIK UNTUK RUMPUN PELACAKAN UNIT RANGE */}
+              {['halaman', 'ayat', 'hadist'].includes(form.tipe_pelacakan) ? (
                 <div className="bg-surface-container-low p-4 rounded-2xl border border-outline-variant/40 space-y-2.5 animate-fadeIn">
                   <span className="text-[10px] font-black text-secondary uppercase tracking-wider flex items-center gap-1">
                     <span className="material-symbols-outlined text-xs">pin</span> Batasan Indeks Standar KBM
                   </span>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase text-outline">Mulai (Ayat/Hal)</label>
-                      <input type="number" min="1" value={form.halaman_mulai} onChange={(e) => setForm({...form, halaman_mulai: parseInt(e.target.value, 10) || 1})} className="w-full h-9 bg-white border border-outline-variant rounded-lg px-2.5 focus:outline-none" required />
+                      {/* 💡 UPDATE: Penamaan parameter input angka adaptif mengikuti tipe */}
+                      <label className="text-[9px] uppercase text-outline">
+                        {form.tipe_pelacakan === 'ayat' ? 'Mulai (Ayat)' : form.tipe_pelacakan === 'hadist' ? 'Mulai (Hadist)' : 'Mulai (Hal)'}
+                      </label>
+                      <input type="number" min="1" value={form.halaman_mulai} onChange={(e) => setForm({...form, halaman_mulai: parseInt(e.target.value, 10) || 1})} className="w-full h-10 bg-white border border-outline-variant rounded-xl px-2.5 focus:outline-none" required />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-[9px] uppercase text-outline">Selesai (Ayat/Hal)</label>
-                      <input type="number" min="1" value={form.halaman_selesai} onChange={(e) => setForm({...form, halaman_selesai: parseInt(e.target.value, 10) || 1})} className="w-full h-9 bg-white border border-outline-variant rounded-lg px-2.5 focus:outline-none" required />
+                      <label className="text-[9px] uppercase text-outline">
+                        {form.tipe_pelacakan === 'ayat' ? 'Selesai (Ayat)' : form.tipe_pelacakan === 'hadist' ? 'Selesai (Hadist)' : 'Selesai (Hal)'}
+                      </label>
+                      <input type="number" min="1" value={form.halaman_selesai} onChange={(e) => setForm({...form, halaman_selesai: parseInt(e.target.value, 10) || 1})} className="w-full h-10 bg-white border border-outline-variant rounded-xl px-2.5 focus:outline-none" required />
                     </div>
                   </div>
                 </div>
@@ -317,7 +352,7 @@ export default function KurikulumMasterView({ onBack }) {
         </div>
       )}
 
-      {/* MODAL INTERFACE B: MANAGEMENT KATEGORI (HIGH Z-INDEX & NO NAVBAR OVERLAP) */}
+      {/* MODAL INTERFACE B: MANAGEMENT KATEGORI */}
       {isCatModalOpen && (
         <div className="fixed inset-0 z-[999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm p-0 sm:p-4 animate-fadeIn">
           <div className="bg-white w-full sm:max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl flex flex-col transform transition-all animate-scaleUp h-[75vh] max-h-[80vh] overflow-hidden mb-[safe-area-inset-bottom]">

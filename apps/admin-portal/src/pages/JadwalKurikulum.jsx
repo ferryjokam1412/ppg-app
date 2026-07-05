@@ -1,10 +1,10 @@
 // src/pages/admin-portal/KurikulumJournalView.jsx
 import { useState, useEffect, useMemo } from 'react';
-import { kurikulumService } from '../services/kurikulumService'; // Sesuaikan relative path jika perlu
+import { kurikulumService } from '../services/kurikulumService'; 
 import toast from 'react-hot-toast';
 
 export default function KurikulumJournalView({ onBack }) {
-  // ─── 1. GRUP DEKLARASI STATE (DI LETAKKAN DI PALING ATAS) ───
+  // ─── 1. GRUP DEKLARASI STATE ───
   const [activeDivision, setActiveDivision] = useState('caberawit');
   const [selectedLevel, setSelectedLevel] = useState('Kelas 1');
   
@@ -28,7 +28,7 @@ export default function KurikulumJournalView({ onBack }) {
 
   // Struktur State Form Multi-Sesi Terstandarisasi Baru
   const [sessions, setSessions] = useState([
-    { id: 1, kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }
+    { id: 1, kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }
   ]);
 
   // ─── 2. GRUP MEMO GENERATOR & UTILITIES ───
@@ -64,8 +64,8 @@ export default function KurikulumJournalView({ onBack }) {
     const [monthName, yearStr] = selectedMonth.split(' ');
     const year = parseInt(yearStr, 10) || 2026;
     const monthIndex = monthMap[monthName] ?? 5;
-    const firstDayIndex = new Date(year, monthIndex, 1).getDay(); 
-    const totalDays = new Date(year, monthIndex + 1, 0).getDate(); 
+    const firstDayIndex = new Date(year, monthIndex, 1).getDay();
+    const totalDays = new Date(year, monthIndex + 1, 0).getDate();
 
     const cells = [];
     for (let i = 0; i < firstDayIndex; i++) cells.push(null);
@@ -129,11 +129,11 @@ export default function KurikulumJournalView({ onBack }) {
     };
   }, [isModalOpen]);
 
-  // ─── 4. LOGIKA MANIPULASI FORM DATA MUTASI ───
-  const addSession = () => setSessions([...sessions, { id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }]);
+  // ─── 4. LOGIKA MANIPULASI FORM DATA ───
+  const addSession = () => setSessions([...sessions, { id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }]);
   const removeSession = (id) => sessions.length > 1 && setSessions(sessions.filter(s => s.id !== id));
   const handleCategoryChange = (id, val) => setSessions(sessions.map(s => s.id === id ? { ...s, kategori: val } : s));
-  const addMaterialField = (sId) => setSessions(sessions.map(s => s.id === sId ? { ...s, materials: [...s.materials, { materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] } : s));
+  const addMaterialField = (sId) => setSessions(sessions.map(s => s.id === sId ? { ...s, materials: [...s.materials, { materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] } : s));
   const removeMaterialField = (sId, mIdx) => setSessions(sessions.map(s => s.id === sId && s.materials.length > 1 ? { ...s, materials: s.materials.filter((_, idx) => idx !== mIdx) } : s));
   
   const handleMaterialTextChange = (sId, mIdx, val) => {
@@ -147,6 +147,7 @@ export default function KurikulumJournalView({ onBack }) {
     }));
   };
 
+  // 💡 UPDATE: Mengakomodasi nilai tipe baru 'halaman', 'ayat', atau 'hadist' secara spesifik
   const handleMaterialTypeChange = (sId, mIdx, val) => {
     setSessions(sessions.map(s => {
       if (s.id === sId) {
@@ -155,7 +156,7 @@ export default function KurikulumJournalView({ onBack }) {
           ...updated[mIdx], 
           tipe_pelacakan: val,
           target_awal: 1,
-          target_akhir: val === 'halaman_ayat' ? 1 : 100
+          target_akhir: (val === 'halaman' || val === 'ayat' || val === 'hadist') ? 1 : 100
         };
         return { ...s, materials: updated };
       }
@@ -181,7 +182,7 @@ export default function KurikulumJournalView({ onBack }) {
         updated[mIdx] = { 
           materi_id: selectedItem.id, 
           nama_materi: selectedItem.nama_materi,
-          tipe_pelacakan: selectedItem.tipe_pelacakan || 'persentase',
+          tipe_pelacakan: selectedItem.tipe_pelacakan || 'halaman',
           target_awal: selectedItem.halaman_mulai || 1,
           target_akhir: selectedItem.halaman_selesai || 1
         };
@@ -189,7 +190,7 @@ export default function KurikulumJournalView({ onBack }) {
       }
       return s;
     }));
-    setFocusedField({ sessionId: null, matIdx: null }); 
+    setFocusedField({ sessionId: null, matIdx: null });
   };
 
   // ─── 5. TIMERS & OPERASIONAL OPEN CLOSE MODAL ───
@@ -201,7 +202,7 @@ export default function KurikulumJournalView({ onBack }) {
       setActiveTargetId(existing.id);
       if (existing.is_libur) {
         setModalMode('libur');
-        setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }]);
+        setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }]);
       } else {
         setModalMode('materi');
         setSessions(existing.compiled_sessions);
@@ -209,7 +210,7 @@ export default function KurikulumJournalView({ onBack }) {
     } else {
       setActiveTargetId(null);
       setModalMode('materi');
-      setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }]);
+      setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }]);
     }
     setFocusedField({ sessionId: null, matIdx: null });
     setIsModalOpen(true);
@@ -217,7 +218,7 @@ export default function KurikulumJournalView({ onBack }) {
 
   const handleOpenMudaMudiNewRangeModal = () => {
     setActiveTargetId(null); setStartDate(''); setEndDate(''); setModalMode('materi');
-    setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }]);
+    setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }]);
     setFocusedField({ sessionId: null, matIdx: null });
     setIsModalOpen(true);
   };
@@ -228,7 +229,7 @@ export default function KurikulumJournalView({ onBack }) {
     setEndDate(targetItem.tanggal_selesai || '');
     if (targetItem.is_libur) {
       setModalMode('libur');
-      setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman_ayat', target_awal: 1, target_akhir: 1 }] }]);
+      setSessions([{ id: Date.now(), kategori: '', materials: [{ materi_id: '', nama_materi: '', tipe_pelacakan: 'halaman', target_awal: 1, target_akhir: 1 }] }]);
     } else {
       setModalMode('materi');
       setSessions(targetItem.compiled_sessions);
@@ -251,6 +252,7 @@ export default function KurikulumJournalView({ onBack }) {
         finalCompiledSessions = await Promise.all(sessions.map(async (session) => {
           const resolvedMaterials = await Promise.all(session.materials.map(async (mat) => {
             let finalMatId = mat.materi_id;
+            const isRangeType = mat.tipe_pelacakan === 'halaman' || mat.tipe_pelacakan === 'ayat' || mat.tipe_pelacakan === 'hadist';
             
             if (!finalMatId) {
               const newMasterRow = await kurikulumService.insertMasterMaterial({
@@ -258,8 +260,8 @@ export default function KurikulumJournalView({ onBack }) {
                 nama_materi: mat.nama_materi.trim(),
                 jenjang: selectedLevel,
                 tipe_pelacakan: mat.tipe_pelacakan,
-                halaman_mulai: mat.tipe_pelacakan === 'halaman_ayat' ? (mat.target_awal || 1) : 1,
-                halaman_selesai: mat.tipe_pelacakan === 'halaman_ayat' ? (mat.target_akhir || 100) : 100
+                halaman_mulai: isRangeType ? (mat.target_awal || 1) : 1,
+                halaman_selesai: isRangeType ? (mat.target_akhir || 100) : 100
               });
               finalMatId = newMasterRow.id;
             }
@@ -268,8 +270,8 @@ export default function KurikulumJournalView({ onBack }) {
               materi_id: finalMatId, 
               nama_materi: mat.nama_materi,
               tipe_pelacakan: mat.tipe_pelacakan,
-              target_awal: mat.tipe_pelacakan === 'halaman_ayat' ? parseInt(mat.target_awal, 10) || 1 : 1,
-              target_akhir: mat.tipe_pelacakan === 'halaman_ayat' ? parseInt(mat.target_akhir, 10) || 100 : 100
+              target_awal: isRangeType ? parseInt(mat.target_awal, 10) || 1 : 1,
+              target_akhir: isRangeType ? parseInt(mat.target_akhir, 10) || 100 : 100
             };
           }));
 
@@ -281,6 +283,7 @@ export default function KurikulumJournalView({ onBack }) {
         }));
       }
 
+      // 1. 🌟 BERSIHKAN: Jangan inisialisasi properti 'id' dengan null di sini
       const payload = {
         divisi: activeDivision,
         jenjang: selectedLevel,
@@ -297,7 +300,8 @@ export default function KurikulumJournalView({ onBack }) {
       
       if (!targetIdToUse) {
         if (activeDivision === 'caberawit') {
-          const duplicateCheck = savedTargetsList.find(item => item.target_hari === clickedDate);
+          // 2. 🌟 PERBAIKI: Gunakan loose equality (==) untuk mengantisipasi perbedaan tipe data String vs Number
+          const duplicateCheck = savedTargetsList.find(item => item.target_hari == clickedDate);
           if (duplicateCheck) targetIdToUse = duplicateCheck.id;
         } else if (activeDivision === 'mudamudi') {
           const duplicateCheck = savedTargetsList.find(item => 
@@ -307,7 +311,10 @@ export default function KurikulumJournalView({ onBack }) {
         }
       }
 
-      if (targetIdToUse) payload.id = targetIdToUse;
+      // 3. 🌟 HANYA MASUKKAN ID jika targetIdToUse bernilai valid (untuk UPDATE/UPSERT)
+      if (targetIdToUse) {
+        payload.id = targetIdToUse;
+      }
 
       await kurikulumService.upsertTargetKurikulum(payload);
       toast.success(isLiburActive ? "Hari libur dikunci!" : "Target kurikulum berhasil diterbitkan!", { id: toastId });
@@ -544,8 +551,6 @@ export default function KurikulumJournalView({ onBack }) {
 
                           {session.materials.map((material, mIdx) => {
                             const currentQuery = (material.nama_materi || '').toLowerCase().trim();
-                            
-                            // KOREKSI UTAMA: suggestions sekarang menyaring item berdasarkan item.jenjang === selectedLevel
                             const suggestions = masterMaterials.filter(item => 
                               item.kategori === session.kategori && 
                               item.jenjang === selectedLevel && 
@@ -554,19 +559,24 @@ export default function KurikulumJournalView({ onBack }) {
 
                             const isFieldFocused = focusedField.sessionId === session.id && focusedField.matIdx === mIdx;
                             const showDropdown = isFieldFocused && currentQuery.length > 0;
+                            
+                            // 💡 UPDATE: Menyertakan tipe 'hadist' ke dalam rumpun jenis pelacakan model range numerik
+                            const isRangeType = material.tipe_pelacakan === 'halaman' || material.tipe_pelacakan === 'ayat' || material.tipe_pelacakan === 'hadist';
 
                             return (
                               <div key={mIdx} className="relative p-2.5 bg-white border border-outline-variant/60 rounded-xl space-y-2 animate-fadeIn shadow-2xs">
                                 <div className="flex gap-2 items-center">
                                   <span className="text-[10px] text-outline font-mono w-4 shrink-0 text-center">{mIdx + 1}.</span>
                                   
-                                  {/* MINI SELECTOR: METODE PELACAKAN */}
+                                  {/* 💡 UPDATE: Menambahkan opsi pelacakan "Hadist" terpisah secara eksplisit */}
                                   <select 
-                                    value={material.tipe_pelacakan || 'persentase'}
+                                    value={material.tipe_pelacakan || 'halaman'}
                                     onChange={(e) => handleMaterialTypeChange(session.id, mIdx, e.target.value)}
-                                    className="bg-surface-container-high border border-outline-variant rounded-md px-1 py-1 text-[9px] font-black text-primary focus:outline-none cursor-pointer"
+                                    className="bg-surface-container-high border border-outline-variant rounded-md px-1 py-1 text-[9px] font-black text-primary focus:outline-none cursor-pointer select-none"
                                   >
-                                    <option value="halaman_ayat">📖 Lembar</option>
+                                    <option value="halaman">📖 Halaman</option>
+                                    <option value="ayat">🔢 Ayat</option>
+                                    <option value="hadist">📜 Hadist</option>
                                     <option value="persentase">％ Persen</option>
                                   </select>
 
@@ -578,7 +588,7 @@ export default function KurikulumJournalView({ onBack }) {
                                       onBlur={() => setTimeout(() => setFocusedField({ sessionId: null, matIdx: null }), 200)}
                                       onChange={(e) => handleMaterialTextChange(session.id, mIdx, e.target.value)} 
                                       className={`w-full h-8 bg-white border rounded-md px-2.5 font-bold text-xs focus:outline-none transition-colors ${material.materi_id ? 'border-green-500 bg-green-50/10 text-green-900' : 'border-outline-variant'}`} 
-                                      placeholder={session.kategori ? `Ketik nama surat / kitab...` : "Pilih kategori dahulu..."}
+                                      placeholder={session.kategori ? `Ketik nama bahasan kurikulum...` : "Pilih kategori dahulu..."}
                                       disabled={!session.kategori}
                                       required 
                                     />
@@ -591,30 +601,32 @@ export default function KurikulumJournalView({ onBack }) {
                                   )}
                                 </div>
 
-                                {/* INPUT DINAMIS TARGET: JIKA BERTYPE HALAMAN / AYAT */}
-                                {material.tipe_pelacakan === 'halaman_ayat' && (
+                                {/* 💡 UPDATE: Label dinamis pintar mengikuti tipe 'ayat', 'hadist', atau 'halaman' */}
+                                {isRangeType && (
                                   <div className="flex items-center gap-3 pl-6 pt-0.5 animate-fadeIn">
                                     <div className="flex items-center gap-1.5 flex-1">
-                                      <label className="text-[9px] uppercase text-outline shrink-0 font-black">Mulai:</label>
+                                      <label className="text-[9px] uppercase text-outline shrink-0 font-black">
+                                        {material.tipe_pelacakan === 'ayat' ? 'Ayat Awal:' : material.tipe_pelacakan === 'hadist' ? 'Hadist Awal:' : 'Hal Awal:'}
+                                      </label>
                                       <input 
                                         type="number" 
                                         min="1"
                                         value={material.target_awal || ''} 
                                         onChange={(e) => handleMaterialNumChange(session.id, mIdx, 'target_awal', e.target.value)}
                                         className="w-full h-7 bg-surface-container-lowest border border-outline-variant rounded-md px-2 text-xs font-mono font-black focus:outline-none focus:border-primary" 
-                                        placeholder="Mulai"
                                         required
                                       />
                                     </div>
                                     <div className="flex items-center gap-1.5 flex-1">
-                                      <label className="text-[9px] uppercase text-outline shrink-0 font-black">Target:</label>
+                                      <label className="text-[9px] uppercase text-outline shrink-0 font-black">
+                                        {material.tipe_pelacakan === 'ayat' ? 'Ayat Akhir:' : material.tipe_pelacakan === 'hadist' ? 'Hadist Akhir:' : 'Hal Akhir:'}
+                                      </label>
                                       <input 
                                         type="number" 
                                         min="1"
                                         value={material.target_akhir || ''} 
                                         onChange={(e) => handleMaterialNumChange(session.id, mIdx, 'target_akhir', e.target.value)}
                                         className="w-full h-7 bg-surface-container-lowest border border-outline-variant rounded-md px-2 text-xs font-mono font-black focus:outline-none focus:border-primary" 
-                                        placeholder="Selesai"
                                         required
                                       />
                                     </div>
@@ -634,7 +646,7 @@ export default function KurikulumJournalView({ onBack }) {
                                         >
                                           <div className="flex flex-col">
                                             <span>{item.nama_materi}</span>
-                                            <span className="text-[9px] text-outline font-medium">Jenjang: {item.jenjang} • {item.tipe_pelacakan === 'persentase' ? 'Prosentase' : `Def Range: ${item.halaman_mulai}-${item.halaman_selesai}`}</span>
+                                            <span className="text-[9px] text-outline font-medium">Jenjang: {item.jenjang} • Tipe: <span className="uppercase text-primary font-black font-mono text-[8px]">{item.tipe_pelacakan}</span> ({item.halaman_mulai}-{item.halaman_selesai})</span>
                                           </div>
                                           <span className="text-[9px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-black tracking-wide">SILABUS</span>
                                         </button>

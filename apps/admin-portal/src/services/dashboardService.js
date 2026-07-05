@@ -2,35 +2,47 @@
 import { supabase } from '../utils/supabaseClient';
 
 export const dashboardService = {
-  // 1. Mengambil hitungan agregat untuk 3 kartu bento grid
-  async getMetrics(tpqId) {
-    const [students, journals, teachers] = await Promise.all([
-      supabase.from('santri').select('*', { count: 'exact', head: true }).eq('tpq_id', tpqId).eq('status_aktif', true),
-      supabase.from('jurnal_harian').select('*', { count: 'exact', head: true }).eq('tpq_id', tpqId),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('tpq_id', tpqId).eq('role', 'pengajar')
-    ]);
+  /**
+   * Mengambil ringkasan data ringkas untuk dashboard pengajar
+   * @param {string} tpqId - ID Cabang TPQ
+   * @param {string} pembimbingNama - Nama guru pengajar untuk filter jurnal
+   */
+  async getTeacherDashboardSummary(tpqId, pembimbingNama) {
+    if (!tpqId) return { totalSantri: 0, jurnalHariIniCount: 0, hariIniLogs: [] };
 
-    if (students.error) throw students.error;
-    if (journals.error) throw journals.error;
-    if (teachers.error) throw teachers.error;
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    return {
-      activeStudents: students.count || 0,
-      completedJournals: journals.count || 0,
-      activeTeachers: teachers.count || 0
-    };
-  },
+    try {
+      // 1. KUERI TOTAL SANTRI: Hitung total santri aktif di TPQ cabang ini
+      const { count: totalSantri, error: santriError } = await supabase
+        .from('santri')
+        .select('*', { count: 'exact', head: true })
+        .eq('tpq_id', tpqId);
 
-  // 2. Mengambil 3 log aktivitas mengajar terbaru
-  async getRecentActivities(tpqId) {
-    const { data, error } = await supabase
-      .from('jurnal_harian')
-      .select('id, tanggal, sesi, kurikulum(judul_materi)')
-      .eq('tpq_id', tpqId)
-      .order('created_at', { ascending: false })
-      .limit(3);
+      if (santriError) throw santriError;
 
-    if (error) throw error;
-    return data;
+      // 2. KUERI JURNAL HARI INI: Cek log mengajar guru bersangkutan pada tanggal hari ini
+      const { data: hariIniLogs, error: jurnalError } = await supabase
+        .from('jurnal_kelas')
+        .select('*')
+        .eq('tpq_id', tpqId)
+        .eq('tanggal', todayStr);
+
+      if (jurnalError) throw jurnalError;
+
+      // Filter mandiri jurnal yang diampu oleh guru bersangkutan (menghindari limitasi filter RLS teks)
+      const jurnalSayaHariIni = hariIniLogs.filter(j => 
+        j.pengajar && j.pengajar.toLowerCase().includes(pembimbingNama.toLowerCase())
+      );
+
+      return {
+        totalSantri: totalSantri || 0,
+        jurnalHariIniCount: jurnalSayaHariIni.length,
+        allJurnalHariIni: hariIniLogs || []
+      };
+    } catch (err) {
+      console.error("Gagal memuat ringkasan dashboard:", err);
+      throw err;
+    }
   }
 };

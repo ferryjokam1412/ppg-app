@@ -25,11 +25,10 @@ export const jurnalKelasService = {
       
     if (error) throw error;
     
-    // Auto-map data agar langsung cocok dengan variabel yang diminta oleh UI frontend
     return (data || []).map(s => ({
       ...s,
-      name: s.nama_lengkap, 
-      classId: s.classId || s.class_id 
+      name: s.nama_lengkap,
+      classId: s.classId || s.class_id
     }));
   },
 
@@ -46,27 +45,52 @@ export const jurnalKelasService = {
     return data || [];
   },
 
-  // 4. Ambil plot target kurikulum hari ini
+  // 4. 💡 UPDATE KOREKSI: Mengambil plot target silabus harian secara adaptif berdasarkan rumpun divisi KBM
   async getJadwalHariIni(periode, hariKe, divisi, arrayJenjangSantri) {
-    const { data, error } = await supabase
+    // Dapatkan representasi tanggal riil hari ini (Format: YYYY-MM-DD) untuk pencocokan rentang waktu muda-mudi
+    const sekarang = new Date();
+    const y = sekarang.getFullYear();
+    const m = String(sekarang.getMonth() + 1).padStart(2, '0');
+    const d = String(sekarang.getDate()).padStart(2, '0');
+    const formatTanggalHariIni = `${y}-${m}-${d}`;
+
+    let query = supabase
       .from('jadwal_kurikulum')
       .select('*')
       .eq('periode', periode)
-      .eq('target_hari', hariKe)
       .eq('divisi', divisi)
       .in('jenjang', arrayJenjangSantri);
       
-    if (error) throw error;
+    // Jalur kueri kondisional pintar membedakan mekanisme plotting administrasi pengajaran
+    if (divisi === 'caberawit') {
+      query = query.eq('target_hari', hariKe);
+    } else {
+      // Mencari baris target rentang di mana: tanggal_mulai <= hari_ini <= tanggal_selesai
+      query = query.lte('tanggal_mulai', formatTanggalHariIni).gte('tanggal_selesai', formatTanggalHariIni);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error; 
     return data || [];
   },
 
   // 5. Ambil log histori jurnal dalam rentang bulan terpilih khusus untuk TPQ tersebut
-  async getHistoryLogs(startDate, endDate, tpqId) {
+  async getHistoryLogs(filterStartDate, filterEndDate, tpqId) {
     let query = supabase
       .from('jurnal_kelas')
-      .select('*')
-      .gte('tanggal', startDate)
-      .lte('tanggal', endDate)
+      .select(`
+        *,
+        absensi_santri (
+          id,
+          status,
+          santri (
+            nama_lengkap
+          )
+        ),
+        capaian_silabus_jurnal ( * )
+      `) // 💡 KOREKSI: Melakukan multidimensional fetch relasional terstruktur
+      .gte('tanggal', filterStartDate)
+      .lte('tanggal', filterEndDate)
       .order('tanggal', { ascending: false });
       
     if (tpqId) {
@@ -84,8 +108,8 @@ export const jurnalKelasService = {
       .from('master_kelas')
       .insert([
         { 
-          nama_kelas: namaKelas, 
-          divisi: divisi,       
+          nama_kelas: namaKelas,
+          divisi: divisi,      
           tpq_id: tpqId,
           jenjang_list: jenjangList,
           jam_mulai: jamMulai || '15:30',
@@ -103,8 +127,8 @@ export const jurnalKelasService = {
   async updateClass(id, namaKelas, jenjangList, jamMulai, jamSelesai) {
     const { data, error } = await supabase
       .from('master_kelas')
-      .update({ 
-        nama_kelas: namaKelas, 
+      .update({
+        nama_kelas: namaKelas,
         jenjang_list: jenjangList,
         jam_mulai: jamMulai,
         jam_selesai: jamSelesai
@@ -117,7 +141,7 @@ export const jurnalKelasService = {
     return data;
   },
 
-  // 8. 💡 BARU: Hapus berkas data rombel kelas dari pangkalan database
+  // 8. Hapus berkas data rombel kelas dari pangkalan database
   async deleteClass(id) {
     const { error } = await supabase
       .from('master_kelas')
@@ -148,7 +172,31 @@ export const jurnalKelasService = {
   async insertJurnalKelas(payload) {
     const { data, error } = await supabase
       .from('jurnal_kelas')
-      .insert([payload]);
+      .insert([payload])
+      .select()          // 💡 JALUR PERBAIKAN: Tambahkan select agar data dibaca kembali
+      .single();         // 💡 Ambil sebagai single object {} bukan array [{}]
+      
+    if (error) throw error;
+    return data;
+  },
+
+  // 11. 🌟 TAMBAHKAN: Fungsi Bulk Insert Absensi Santri
+  async insertBulkAbsensiSantri(absensiRows) {
+    const { data, error } = await supabase
+      .from('absensi_santri')
+      .insert(absensiRows)
+      .select();
+      
+    if (error) throw error;
+    return data;
+  },
+
+  // 12. 🌟 TAMBAHKAN: Fungsi Bulk Insert Capaian Silabus Terpisah
+  async insertBulkCapaianSilabus(silabusRows) {
+    const { data, error } = await supabase
+      .from('capaian_silabus_jurnal')
+      .insert(silabusRows)
+      .select();
       
     if (error) throw error;
     return data;

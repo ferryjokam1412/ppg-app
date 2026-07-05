@@ -65,5 +65,5 @@ export const kurikulumService = {
         .eq('id', id);
       if (error) throw error;
       return true;
-    }
+    },
 };

@@ -14,7 +14,7 @@ export default function DashboardLayout() {
   };
 
   return (
-    <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col antialiased selection:bg-secondary/20">
+    <div className="bg-background text-on-background font-body-md min-h-screen flex flex-col antialiased selection:bg-secondary/20 p-6">
       
       {/* 1. TopAppBar - Menerima state untuk mengatur margin-left secara dinamis */}
       <TopAppBar isSidebarExpanded={isSidebarExpanded} />

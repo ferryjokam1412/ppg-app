@@ -7,12 +7,15 @@ import { AuthProvider } from './context/AuthContext';
 // Impor Layout Utama & Halaman
 import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardPage from './pages/DashboardPage';
-import JournalsPage from './pages/JournalsPage';
-import StudentsPage from './pages/StudentsPage';
-import TeacherPage from './pages/TeacherPage';
+import JadwalPage from './pages/JadwalPage';
+import StudentsPage from './pages/GenerusPage';
+import TeacherPage from './pages/DaftarPage';
 import LoginPage from './pages/LoginPage';
 import InstitutionPage from './pages/InstitutionProfilePage'
-import ManagementJurnalKelas from './pages/ManagementJurnalKelas';
+import ManagementJurnalKelas from './pages/JurnalPengajar';
+import JurnalPage from './pages/JurnalPage'
+import KurikulumJournalGlobalView from './pages/JurnalKurikulum';
+import LaporanSebulan from './pages/LaporanSebulan'
 
 export default function App() {
   const [session, setSession] = useState(null);
@@ -63,9 +66,9 @@ export default function App() {
           element={isAuthenticated ? <DashboardLayout /> : <Navigate to="/login" replace />}
         >
           <Route index element={<DashboardPage />} />
-          <Route path="jadwal" element={<JournalsPage />} />
-          <Route path="journals" element={<ManagementJurnalKelas />} />
-          <Route path="students" element={<StudentsPage />} />
+          <Route path="jadwal" element={<JadwalPage />} />
+          <Route path="journals" element={<JurnalPage />} />
+          <Route path="laporan" element={<LaporanSebulan />} />
           <Route path="teachers" element={<TeacherPage />} />
           <Route path="profile" element={<InstitutionPage />} />
           

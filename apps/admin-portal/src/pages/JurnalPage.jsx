@@ -1,6 +1,6 @@
 import { useAuth } from '../context/AuthContext'; // 💡 Sesuaikan path menuju AuthContext Anda
-import Kurikulum from './DashboardKurikulum';
-import Pengajar from './DashboardPengajar';
+import Kurikulum from './JurnalKurikulum';
+import Pengajar from './JurnalPengajar';
 
 export default function DashboardPage() {
   // 💡 Ambil 'role' dan 'isLoading' langsung dari central AuthContext
