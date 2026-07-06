@@ -73,7 +73,7 @@ export default function HomePage() {
           </h1>
           
           <p className="font-body-lg text-lg text-on-surface-variant max-w-2xl mx-auto leading-relaxed">
-            Mencetak generasi pendidik spiritual yang unggul, profesional, dan berdedikasi tinggi untuk kemajuan umat. Bergabunglah bersama kami dalam perjalanan mulia ini.
+            Bersama mewujudkan generus yang tangguh menghadapi tantangan dunia, menggenggam kesuksesan akhirat, dan senantiasa mencerminkan 29 Karakter Luhur dalam setiap langkah.
           </p>
           
           <div className="pt-4">
