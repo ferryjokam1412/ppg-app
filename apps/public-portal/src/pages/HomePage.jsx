@@ -118,7 +118,7 @@ export default function HomePage() {
                   </div>
 
                   <h2 className="font-headline-md text-2xl text-on-primary-fixed leading-snug font-bold">
-                    {kegiatanTerbaru ? kegiatanTerbaru.nama_kegiatan : 'Penerimaan Santri Baru Gelombang 2 Tahun 2026'}
+                    {kegiatanTerbaru ? kegiatanTerbaru.nama_kegiatan : 'Update Database Generus Tahun 2026'}
                   </h2>
                   
                   {kegiatanTerbaru && (
